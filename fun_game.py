@@ -10,11 +10,17 @@
 # Assignment:   Lab 12 - 2 (TEAM)
 # Date:         20 November 2025
 
-import pygame
+import pygame, sys
 from pygame.locals import*
-import sys 
+import random
+
 
 pygame.init()
+
+# Frames per second #
+FPS = pygame.time.Clock()
+FPS.tick(60)
+
 
 # Screen #
 info = pygame.display.Info()
@@ -27,11 +33,14 @@ desktop_height = info.current_h
 initial_width = int(desktop_width * 0.8)
 initial_height = int(desktop_height * 0.8)
 
-# Create screen
+# Create a resizable screen
 screen = pygame.display.set_mode((initial_width, initial_height), pygame.RESIZABLE)
 
 
-# Game loop
+
+
+
+## Game loop ##
 while True:
 
     # Quitting the game loop
