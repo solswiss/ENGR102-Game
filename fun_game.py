@@ -16,12 +16,30 @@ import sys
 
 pygame.init()
 
+# Screen #
+info = pygame.display.Info()
+
+# Get current display info
+desktop_width = info.current_w
+desktop_height = info.current_h
+
+# Create initial screen size
+initial_width = int(desktop_width * 0.8)
+initial_height = int(desktop_height * 0.8)
+
+# Create screen
+screen = pygame.display.set_mode((initial_width, initial_height), pygame.RESIZABLE)
+
+
+# Game loop
 while True:
+
+    # Quitting the game loop
     for event in pygame.event.get():
         if event.type == QUIT:
             pygame.quit()
             sys.exit()
 
 
-    # Responsible for updating your game window with any changes that have been made within that specific iteration of the game loop. 
+    # Updating game
     pygame.display.update()
