@@ -12,10 +12,14 @@
 
 from enum import Enum
 import pygame
+import pygame_menu
 from pygame.locals import*
 import sys 
 
 pygame.init()
+
+WINDOW_HEIGHT = 800
+WINDOW_WIDTH = 1000
 
 class CardType(Enum):
     ZERO = 0
@@ -54,10 +58,17 @@ class Card(pygame.sprite.Sprite):
     def draw(self, surface):
         surface.blit(self.image, self.rect)
 
-DISPLAYSURF = pygame.display.set_mode((300,300))
+DISPLAYSURF = pygame.display.set_mode((WINDOW_WIDTH,WINDOW_HEIGHT))
 pygame.display.set_caption("The Gambler's Flip 7")
 
-# create the deck of 92 cards
+# RULES
+def display_rules():
+    print("Display rules")
+    pass
+
+
+# SETUP
+# create the deck
 DECK = [Card(0)]
 for i in range(13): # numbers
     for j in range(i):
@@ -71,19 +82,33 @@ print(len(DECK),":")
 for i in DECK:
     print(i.value,end=", ")
 
-Card1 = Card(0)
 
-# game loop begins
-while True:
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
-    # update variables
+# PLAY
+def play():
+    print("Play")
 
-    # draw (after update)
-    DISPLAYSURF.fill((255,255,255))
-    Card1.draw(DISPLAYSURF)
+    Card1 = Card(0)
 
-    # Responsible for updating your game window with any changes that have been made within that specific iteration of the game loop. 
-    pygame.display.update()
+    # game loop begins
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+        # update variables
+
+        # draw (after update)
+        DISPLAYSURF.fill((255,255,255))
+        Card1.draw(DISPLAYSURF)
+
+        # Responsible for updating your game window with any changes that have been made within that specific iteration of the game loop. 
+        pygame.display.update()
+
+
+# MENU
+menu = pygame_menu.Menu("Flip 7", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
+menu.add.button("Rules", display_rules)
+menu.add.button("Play", play)
+menu.add.button("Quit", pygame_menu.events.EXIT)
+
+menu.mainloop(DISPLAYSURF)
