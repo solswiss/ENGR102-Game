@@ -52,7 +52,26 @@ def countValue(deck):
         elif(card == 18): # 18 card type correspond to double multipler
             multiplier = 2
     return number_card, score_modifier, multiplier
+
+def valid_flip_7(deck):
+    """If the deck has 7 unique number cards, return true"""
     
+    # Find all unique cards
+    unique_cards = []
+    for card in deck:
+        if (card not in unique_cards):
+            unique_cards.append(card)
+    
+    # Make sure unique cards are number cards
+    valid_cards = list(range(13))
+    unique_number = 0
+    for card in unique_cards:
+        if (card in valid_cards):
+            unique_number += 1
+    if (unique_number >= 7):
+        return True
+    return False
+
 class CardType(Enum):
     ZERO = 0
     ONE = 1
@@ -117,17 +136,11 @@ class Player(pygame.sprite.Sprite):
         """ Compute the Player's current score"""
         Player.score_total += Player.score_current
     
-    # def flip_7():
-    #     """If the deck has 7 unique number cards, a player gains 15 points bonus and the round ends"""
-        
-    #     # Find all unique cards
-    #     unique_cards = []
-    #     for card in Player.player_deck:
-    #         if (card not in unique_cards):
-    #             unique_cards.append(card)
-        
-    #     # Make sure unique cards are number cards
-    #     valid_cards = list(range(13))
+    def flip_7(): #FIXME add a game end function
+        """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
+        if (valid_flip_7(Player.player_deck)):
+            Player.score_total += 15
+            
 
     def freeze():
         pass
