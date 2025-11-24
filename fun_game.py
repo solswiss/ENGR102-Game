@@ -10,9 +10,7 @@
 # Assignment:   Lab 13 - 1 (TEAM)
 # Date:         21 November 2025
 
-from enum import Enum
-import pygame #pip install pygame
-import pygame_menu #pip install pygame-menu
+import pygame
 from pygame.locals import*
 import sys 
 
