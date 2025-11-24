@@ -10,15 +10,49 @@
 # Assignment:   Lab 13 - 1 (TEAM)
 # Date:         21 November 2025
 
-import pygame
+from enum import Enum
+import pygame, sys
+import pygame_menu
 from pygame.locals import*
-import sys 
+import random, time
 
+# Initializing
 pygame.init()
 
+# Window Size
 WINDOW_HEIGHT = 800
 WINDOW_WIDTH = 1000
 
+# Setting up FPS
+FPS = 60
+FramesPerSec = pygame.time.Clock()
+
+# Functions
+def countValue(deck):
+    """ Given a deck, returns the value of number cards (int), modifier cards (int), and multipler (1 or 2) in that order.
+    If not value exist return 0 for int and False for booleans"""
+
+    number_card = 0
+    score_modifier = 0
+    multiplier = 1
+
+    # Corresponding Card type value to actual score modifier value
+    score_modifier_dict = {13: 2, 
+                           14: 4, 
+                           15: 6, 
+                           16: 8, 
+                           17: 10}
+    for card in deck:
+        if (card in range(13)): # 0 to 12 card type correspond ot number cards
+            number_card +=card
+        elif(card in range(13, 18)): # 13 to 17 card type correspond to score modifiers
+            for key, value in score_modifier_dict.items(): 
+                if (card == key):
+                    score_modifier += value
+        elif(card == 18): # 18 card type correspond to double multipler
+            multiplier = 2
+    return number_card, score_modifier, multiplier
+    
 class CardType(Enum):
     ZERO = 0
     ONE = 1
@@ -43,6 +77,8 @@ class CardType(Enum):
     FLIP = 20
     CHANCE = 21
 
+
+# Cards
 class Card(pygame.sprite.Sprite):
     value = 0
 
@@ -56,11 +92,57 @@ class Card(pygame.sprite.Sprite):
     def draw(self, surface):
         surface.blit(self.image, self.rect)
 
+# Player
+class Player(pygame.sprite.Sprite):
+    player_deck = []
+    score_total = 0
+    score_current = 0
+
+    def hit(): 
+        """ Adds a random card from the deck to the player's deck"""
+        Player.player_deck.append(DECK.pop(DECK[random.randrange(len(DECK))])) 
+
+        Player.score()
+        Player.flip_7()
+
+    def score():
+        """ Compute the Player's current score with current deck"""
+        # Get number card, 
+        number_cards, modifer_cards, multipler = countValue(Player.player_deck)
+        
+        # Score = Number Cards * Multipler +  Modifier Cards
+        Player.score_current = number_cards * multipler + modifer_cards
+        
+    def stay():
+        """ Compute the Player's current score"""
+        Player.score_total += Player.score_current
+    
+    # def flip_7():
+    #     """If the deck has 7 unique number cards, a player gains 15 points bonus and the round ends"""
+        
+    #     # Find all unique cards
+    #     unique_cards = []
+    #     for card in Player.player_deck:
+    #         if (card not in unique_cards):
+    #             unique_cards.append(card)
+        
+    #     # Make sure unique cards are number cards
+    #     valid_cards = list(range(13))
+
+    def freeze():
+        pass
+    def flip_3():
+        pass
+    def second_chance():
+        pass
+
+# Create Screen
 DISPLAYSURF = pygame.display.set_mode((WINDOW_WIDTH,WINDOW_HEIGHT))
 pygame.display.set_caption("The Gambler's Flip 7")
 
 # RULES
 def display_rules():
+    """Displays Rules"""
     print("Display rules")
     pass
 
@@ -89,6 +171,8 @@ def play():
 
     # game loop begins
     while True:
+
+        # Allows user to quit game
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
