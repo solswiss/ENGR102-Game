@@ -112,34 +112,34 @@ class Card(pygame.sprite.Sprite):
         surface.blit(self.image, self.rect)
 
 # Player
-class Player(pygame.sprite.Sprite):
-    player_deck = []
-    score_total = 0
-    score_current = 0
+class Player:
+    def __init__(self):
+        self.player_deck = []
+        self.score_total = 0
+        self.score_current = 0
 
-    def hit(): 
+    def hit(self): 
         """ Adds a random card from the deck to the player's deck"""
-        Player.player_deck.append(DECK.pop(DECK[random.randrange(len(DECK))])) 
+        self.player_deck.append(DECK.pop(random.randrange(len(DECK)))) 
 
-        Player.score()
-        Player.flip_7()
+        self.score()
 
-    def score():
+    def score(self):
         """ Compute the Player's current score with current deck"""
         # Get number card, 
-        number_cards, modifer_cards, multipler = countValue(Player.player_deck)
+        number_cards, modifer_cards, multipler = countValue(self.player_deck)
         
         # Score = Number Cards * Multipler +  Modifier Cards
-        Player.score_current = number_cards * multipler + modifer_cards
+        self.score_current = number_cards * multipler + modifer_cards
         
-    def stay():
+    def stay(self):
         """ Compute the Player's current score"""
-        Player.score_total += Player.score_current
+        self.score_total += self.score_current
     
-    def flip_7(): #FIXME add a game end function
+    def flip_7(self): #FIXME add a game end function
         """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
-        if (valid_flip_7(Player.player_deck)):
-            Player.score_total += 15
+        if (valid_flip_7(self.player_deck)):
+            self.score_total += 15
             
 
     def freeze():
@@ -171,9 +171,9 @@ for i in range(13,19): # mods
 for i in range(19,22): # actions
     for j in range(3):
         DECK.append(Card(i))
-print(len(DECK),":")
-for i in DECK:
-    print(i.value,end=", ")
+# print(len(DECK),":")
+# for i in DECK:
+#     print(i.value,end=", ")
 
 
 # PLAY
@@ -181,6 +181,11 @@ def play():
     print("Play")
 
     Card1 = Card(0)
+    
+    # Create Players
+    player_1 = Player()
+    player_1.hit()
+    print(player_1.score_current)
 
     # game loop begins
     while True:
