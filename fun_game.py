@@ -28,7 +28,7 @@ FPS = 60
 FramesPerSec = pygame.time.Clock()
 
 # Functions
-def countValue(deck):
+def count_value(deck):
     """ Given a deck, returns the value of number cards (int), modifier cards (int), and multipler (1 or 2) in that order.
     If not value exist return 0 for int and False for booleans"""
 
@@ -71,6 +71,46 @@ def valid_flip_7(deck):
     if (unique_number >= 7):
         return True
     return False
+
+def number_cards(deck):
+    """ Takes in a deck list and returns only the number cards as a list"""
+
+    number_cards_list = []
+    valid_cards = list(range(13))
+
+    for card in deck:
+        if (card in valid_cards):
+            number_cards_list.append(card)
+    return number_cards_list
+
+def has_second_chance(deck):
+    "Takes in a deck list and returns True if there is a second chance card"
+    if (21 in deck):
+        return True
+    else:
+        return False
+    
+def duplicate_number_cards(deck):
+    "Takes in a deck list and returns True if there are duplicate number cards, otherwise returns False"
+
+    duplicates = []
+    number_cards_list = number_cards(deck)
+
+    # Find duplicates
+    for i in range(len(number_cards_list)):
+        for j in range(i + 1, len(number_cards_list)):
+            if (number_cards_list[i] == number_cards_list[j]) and (number_cards_list[i] not in duplicates):
+                duplicates.append(number_cards_list[i])
+
+    # If duplicates return True, otherwise return False
+    if (len(duplicates) > 0):
+        return True
+    else:
+        return False
+    
+def shuffle(deck):
+    "Shuffles the deck"
+    random.shuffle(deck)
 
 class CardType(Enum):
     ZERO = 0
@@ -117,37 +157,82 @@ class Player:
         self.player_deck = []
         self.score_total = 0
         self.score_current = 0
+        self.turn = False
+        self.round = False
+
+    def start_round(self):
+        "Start the round for player"
+        self.round = True
+
+    def end_round(self):
+        "Emds the rpund for player"
+        self.round = False
+
+    def start_turn(self):
+        """ Start player turn"""
+        self.turn = True
+
+    def end_turn(self):
+        """ Ends player turn"""
+        self.turn = False
 
     def hit(self): 
         """ Adds a random card from the deck to the player's deck"""
-        self.player_deck.append(DECK.pop(random.randrange(len(DECK)))) 
+        new_card = DECK.pop(random.randrange(len(DECK)))
+        self.player_deck.append(new_card) 
+
+        # Bust if duplicate number cards unless player has second chance card
+        if (duplicate_number_cards(self.player_deck)):
+            if (has_second_chance(self.player_deck)):
+                self.second_chance()
+            else:
+                self.bust()
+
+        # Flip 7 if 7 unique number cards
+        if (valid_flip_7(self.player_deck)):
+            self.flip_7()
 
         self.score()
+
+    def bust(self):
+        " Player turn ends when getting duplicate number cards"
+        self.score_current = 0
+        self.end_turn()
+        self.end_round()
+        
+    def stay(self):
+        """ Compute the Player's current score and ends their turn"""
+        self.score_total += self.score_current
+        self.end_turn()
+        self.end_round()
+    
+    def flip_7(self):
+        """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
+        self.score_total += 15
+        self.stay()
 
     def score(self):
         """ Compute the Player's current score with current deck"""
         # Get number card, 
-        number_cards, modifer_cards, multipler = countValue(self.player_deck)
+        number_cards, modifer_cards, multipler = count_value(self.player_deck)
         
         # Score = Number Cards * Multipler +  Modifier Cards
         self.score_current = number_cards * multipler + modifer_cards
-        
-    def stay(self):
-        """ Compute the Player's current score"""
-        self.score_total += self.score_current
-    
-    def flip_7(self): #FIXME add a game end function
-        """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
-        if (valid_flip_7(self.player_deck)):
-            self.score_total += 15
-            
 
-    def freeze():
-        pass
-    def flip_3():
-        pass
-    def second_chance():
-        pass
+    def freeze(self):
+        "The player banks all the points they have collected and is out of the round."
+        self.stay()
+
+    def flip_3(self):
+        """The player who receives this card must accept the next three cards, flipping them one at a time."""
+        for i in range(3):
+            self.hit()
+
+    def second_chance(self):
+        "If the player with this card is given another card with the same number, discard Second Chance and the duplicate number card"
+        self.player_deck.pop() # Remove most recent card
+        self.player_deck.remove(21) # Remove second chance card
+        
 
 # Create Screen
 DISPLAYSURF = pygame.display.set_mode((WINDOW_WIDTH,WINDOW_HEIGHT))
