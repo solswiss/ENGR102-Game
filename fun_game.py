@@ -53,24 +53,14 @@ def count_value(deck):
             multiplier = 2
     return number_card, score_modifier, multiplier
 
-def valid_flip_7(deck):
-    """If the deck has 7 unique number cards, return true"""
-    
+def unique_cards(deck):
+    """ Takes in a deck list and returns the unique cards"""
     # Find all unique cards
     unique_cards = []
     for card in deck:
         if (card not in unique_cards):
             unique_cards.append(card)
-    
-    # Make sure unique cards are number cards
-    valid_cards = list(range(13))
-    unique_number = 0
-    for card in unique_cards:
-        if (card in valid_cards):
-            unique_number += 1
-    if (unique_number >= 7):
-        return True
-    return False
+    return unique_cards
 
 def number_cards(deck):
     """ Takes in a deck list and returns only the number cards as a list"""
@@ -82,6 +72,17 @@ def number_cards(deck):
         if (card in valid_cards):
             number_cards_list.append(card)
     return number_cards_list
+
+def valid_flip_7(deck):
+    """If the deck has 7 unique number cards, return true"""
+
+    # Find all unique cards
+    unique_cards = unique_cards(deck)
+    
+    # Make sure at least 7 unique cards are number cards
+    if (len(number_cards(unique_cards))):
+        return True
+    return False
 
 def has_second_chance(deck):
     "Takes in a deck list and returns True if there is a second chance card"
