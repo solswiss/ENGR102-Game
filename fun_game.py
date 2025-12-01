@@ -265,14 +265,21 @@ for i in range(19,22): # actions
 
 
 # Create Players
-    num_players = int(input("Enter the number of players: ")) 
-    players = []
+players = []
 
-    for i in range (num_players):
-        player_name = input(f"Enter name of Player {i+1}: ")
-        id = i + 1
-        new_player = Player(player_name, id)
-        players.append(new_player) 
+# Ensures the number of players is a valid integer
+while True:
+    try:
+        num_players = int(input("Enter the number of players: ")) 
+        break
+    except ValueError:
+        print("Please enter a valid number")
+
+for i in range (num_players):
+    player_name = input(f"Enter name of Player {i+1}: ")
+    id = i + 1
+    new_player = Player(player_name, id)
+    players.append(new_player) 
 
 # PLAY
 def play():
