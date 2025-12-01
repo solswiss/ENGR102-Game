@@ -1,341 +1,725 @@
-# By submitting this assignment, I agree to the following:
-#   "Aggies do not lie, cheat, or steal, or tolerate those who do."
-#   "I have not given or received any unauthorized aid on this assignment."
-#
-# Names:        Kennady Bunn
-#               Milo Sun
-#               Ruth Ellen Bowling
-#               Andrew Justin
-# Section:      511
-# Assignment:   Lab 13 - 1 (TEAM)
-# Date:         21 November 2025
+import pygame, sys, random, pygame_menu
+from pygame.locals import *
+from math import floor
 
-from enum import Enum
-import pygame, sys
-import pygame_menu
-from pygame.locals import*
-import random, time
-
-# Initializing
-pygame.init()
-
-# Window Size
-WINDOW_HEIGHT = 800
-WINDOW_WIDTH = 1000
-
-# Setting up FPS
+# ---------- CONFIG ----------
+WINDOW_WIDTH = 1200
+WINDOW_HEIGHT = 820
 FPS = 60
-FramesPerSec = pygame.time.Clock()
+CARD_W, CARD_H = 88, 128
+CARD_GAP = 8
+ROWS_TOP = 210
+ASSET_FOLDER = "cards_video"
+BUTTON_W = 120
+BUTTON_H = 44
+BOT_HIT_THRESHOLD = 16   # lower -> more conservative bots; higher -> more aggressive
+# ----------------------------
 
-# Functions
-def count_value(deck):
-    """ Given a deck, returns the value of number cards (int), modifier cards (int), and multipler (1 or 2) in that order.
-    If not value exist return 0 for int and False for booleans"""
+pygame.init()
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Flip 7 — Full (Bots + Mouse UI + Video Cards)")
+clock = pygame.time.Clock()
+FONT = pygame.font.SysFont(None, 20)
+BIG = pygame.font.SysFont(None, 34)
+SMALL = pygame.font.SysFont(None, 16)
 
-    number_card = 0
-    score_modifier = 0
-    multiplier = 1
+# Card constants
+MODIFIER_MAP = {13: 2, 14: 4, 15: 6, 16: 8, 17: 10}
+LABEL_MAP = {18: "X2", 19: "FREEZE", 20: "FLIP3", 21: "SECOND"}
 
-    # Corresponding Card type value to actual score modifier value
-    score_modifier_dict = {13: 2, 
-                           14: 4, 
-                           15: 6, 
-                           16: 8, 
-                           17: 10}
-    for card in deck:
-        if (card in range(13)): # 0 to 12 card type correspond ot number cards
-            number_card +=card
-        elif(card in range(13, 18)): # 13 to 17 card type correspond to score modifiers
-            for key, value in score_modifier_dict.items(): 
-                if (card == key):
-                    score_modifier += value
-        elif(card == 18): # 18 card type correspond to double multipler
-            multiplier = 2
-    return number_card, score_modifier, multiplier
-
-def unique_cards(deck):
-    """ Takes in a deck list and returns the unique cards"""
-    # Find all unique cards
-    unique_cards = []
-    for card in deck:
-        if (card not in unique_cards):
-            unique_cards.append(card)
-    return unique_cards
-
-def number_cards(deck):
-    """ Takes in a deck list and returns only the number cards as a list"""
-
-    number_cards_list = []
-    valid_cards = list(range(13))
-
-    for card in deck:
-        if (card in valid_cards):
-            number_cards_list.append(card)
-    return number_cards_list
-
-def valid_flip_7(deck):
-    """If the deck has 7 unique number cards, return true"""
-
-    # Find all unique cards
-    unique_cards = unique_cards(deck)
-    
-    # Make sure at least 7 unique cards are number cards
-    if (len(number_cards(unique_cards))):
-        return True
-    return False
-
-def has_second_chance(deck):
-    "Takes in a deck list and returns True if there is a second chance card"
-    if (21 in deck):
-        return True
+# ---------- Image loading (cached) ----------
+IMAGE_CACHE = {}
+def load_card_image(val):
+    candidates = []
+    if val in range(0, 13):
+        candidates = [f"{ASSET_FOLDER}/num_{val}.png", f"{ASSET_FOLDER}/{val}.png", f"{val}.png"]
+    elif val in MODIFIER_MAP:
+        candidates = [f"{ASSET_FOLDER}/mod_{val}.png", f"{ASSET_FOLDER}/mod{val}.png", f"{ASSET_FOLDER}/{val}.png"]
     else:
-        return False
-    
-def duplicate_number_cards(deck):
-    "Takes in a deck list and returns True if there are duplicate number cards, otherwise returns False"
+        name_map = {18: "double_18", 19: "freeze_19", 20: "flip3_20", 21: "chance_21"}
+        base = name_map.get(val, f"card_{val}")
+        candidates = [f"{ASSET_FOLDER}/{base}.png", f"{base}.png"]
+    for p in candidates:
+        try:
+            img = pygame.image.load(p).convert_alpha()
+            img = pygame.transform.smoothscale(img, (CARD_W, CARD_H))
+            return img
+        except Exception:
+            continue
+    # fallback render
+    surf = pygame.Surface((CARD_W, CARD_H))
+    surf.fill((250, 250, 250))
+    pygame.draw.rect(surf, (20, 20, 20), surf.get_rect(), 2)
+    label = str(val) if val in range(0,13) else LABEL_MAP.get(val, str(val))
+    txt = FONT.render(label, True, (10,10,10))
+    tw, th = txt.get_size()
+    surf.blit(txt, ((CARD_W - tw)//2, (CARD_H - th)//2))
+    return surf
 
-    duplicates = []
-    number_cards_list = number_cards(deck)
+def get_card_image(v):
+    if v not in IMAGE_CACHE:
+        IMAGE_CACHE[v] = load_card_image(v)
+    return IMAGE_CACHE[v]
 
-    # Find duplicates
-    for i in range(len(number_cards_list)):
-        for j in range(i + 1, len(number_cards_list)):
-            if (number_cards_list[i] == number_cards_list[j]) and (number_cards_list[i] not in duplicates):
-                duplicates.append(number_cards_list[i])
+# ---------- Deck builder ----------
+def make_deck():
+    deck = []
+    deck.extend([0]*1)
+    for v in range(1, 13):
+        deck.extend([v]*v)
+    # modifiers + X2 (ensure X2 included)
+    for v in range(13, 18):
+        deck.append(v)
+    if 18 not in deck:
+        deck.append(18)
+    # actions: 3 each
+    for a in (19,20,21):
+        deck.extend([a]*3)
+    random.shuffle(deck)
+    return deck
 
-    # If duplicates return True, otherwise return False
-    if (len(duplicates) > 0):
-        return True
-    else:
-        return False
-    
-def classic_shuffle(deck):
-    "Shuffles the deck given the deck and returns the shuffled deck"
-    return random.shuffle(deck)
-
-def discard_deck(deck, discarded_deck):
-    """" Discards a deck of cards after players have stayed given the deck to discard and discarded deck"""
-    discarded_deck.append(deck)
-
-class CardType(Enum):
-    ZERO = 0
-    ONE = 1
-    TWO = 2
-    THREE = 3
-    FOUR = 4
-    FIVE = 5
-    SIX = 6
-    SEVEN = 7
-    EIGHT = 8
-    NINE = 9
-    TEN = 10
-    ELEVEN = 11
-    TWELVE = 12
-    MOD_2 = 13
-    MOD_4 = 14
-    MOD_6 = 15
-    MOD_8 = 16
-    MOD_10 = 17
-    DOUBLE = 18
-    FREEZE = 19
-    FLIP = 20
-    CHANCE = 21
-
-
-# Cards
-class Card(pygame.sprite.Sprite):
-    value = 0
-
-    def __init__(self, type):
-        super().__init__()
-        self.value = type
-        self.image = pygame.image.load("4d.png")
-        self.rect = self.image.get_rect()
-        self.rect.center = (20,20)
-    
-    def draw(self, surface):
-        surface.blit(self.image, self.rect)
-
-# Player
+# ---------- Player object ----------
 class Player:
-    
-    # Player constructor taking in name and id
-    def __init__(self, name, id):
+    def __init__(self, name, is_bot=False, bot_aggr=BOT_HIT_THRESHOLD):
         self.name = name
-        self.id = id
-
-        self.player_deck = []
-
+        self.is_bot = is_bot
+        self.bot_aggr = bot_aggr
+        self.hand = []
+        self.has_second = False
+        self.stayed = False
+        self.busted = False
+        self.score_current = 0
         self.score_total = 0
+
+    def reset_for_round(self):
+        self.hand = []
+        self.has_second = False
+        self.stayed = False
+        self.busted = False
         self.score_current = 0
 
-        self.turn = False
-        self.round = False
-        self.winner = False
+    def compute_current_score(self):
+        num_sum = sum(c for c in self.hand if c in range(0,13))
+        mul = 2 if 18 in self.hand else 1
+        mod_sum = sum(MODIFIER_MAP[c] for c in self.hand if c in MODIFIER_MAP)
+        self.score_current = num_sum * mul + mod_sum
+        return self.score_current
 
-    def start_round(self):
-        "Start the round for player"
-        self.round = True
+# ---------- Helpers ----------
+def unique_number_count(hand):
+    return len(set([c for c in hand if c in range(0,13)]))
 
-    def end_round(self):
-        "Emds the rpund for player"
-        self.round = False
+def has_duplicate_number(hand):
+    nums = [c for c in hand if c in range(0,13)]
+    return len(nums) != len(set(nums))
 
-    def start_turn(self):
-        """ Start player turn"""
-        self.turn = True
+def next_active_index(players, start_idx):
+    n = len(players)
+    for i in range(1, n+1):
+        idx = (start_idx + i) % n
+        if not players[idx].busted and not players[idx].stayed:
+            return idx
+    return None
 
-    def end_turn(self):
-        """ Ends player turn"""
-        self.turn = False
+def ensure_deck_has_cards(deck, discard):
+    if not deck and discard:
+        deck.extend(discard)
+        discard.clear()
+        random.shuffle(deck)
 
-    def win(self): # FIXME may need to change since more than one player at the end of the round may have over 200 points, the highets of them is considered the winner
-        """ Player wins when reaching 200 points or more"""
-        if (self.score_total > 200):
-            self.winner = True
-        else:
-            self.winner = False
-
-    def hit(self): 
-        """ Adds a random card from the deck to the player's deck"""
-        new_card = DECK.pop(random.randrange(len(DECK)))
-        self.player_deck.append(new_card) 
-
-        # Bust if duplicate number cards unless player has second chance card
-        if (duplicate_number_cards(self.player_deck)):
-            if (has_second_chance(self.player_deck)):
-                self.second_chance()
-            else:
-                self.bust()
-
-        # Flip 7 if 7 unique number cards
-        if (valid_flip_7(self.player_deck)):
-            self.flip_7()
-
-        self.score()
-
-    def end(self):
-        """ Automatically ends a player's turn during that round and discard their cards"""
-        discard_deck(DISCARD_DECK, self.player_deck)
-        self.end_turn()
-        self.end_round()
-
-    def bust(self):
-        " Player turn ends when getting duplicate number cards"
-        self.score_current = 0
-        self.end()
-
-    def stay(self):
-        """ Compute the Player's current score and ends their turn"""
-        self.score_total += self.score_current
-        self.end()
-    
-    def flip_7(self):
-        """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
-        self.score_total += 15
-        self.stay()
-
-    def score(self):
-        """ Compute the Player's current score with current deck"""
-        # Get number card, 
-        number_cards, modifer_cards, multipler = count_value(self.player_deck)
-        
-        # Score = Number Cards * Multipler +  Modifier Cards
-        self.score_current = number_cards * multipler + modifer_cards
-
-    def freeze(self):
-        "The player banks all the points they have collected and is out of the round."
-        self.stay()
-
-    def flip_3(self): #FIXME need to make sure card is removed after use
-        """The player who receives this card must accept the next three cards, flipping them one at a time."""
-        for i in range(3):
-            self.hit()
-
-    def second_chance(self):
-        "If the player with this card is given another card with the same number, discard Second Chance and the duplicate number card"
-        self.player_deck.pop() # Remove most recent card
-        self.player_deck.remove(21) # Remove second chance card
-        
-
-# Create Screen
-DISPLAYSURF = pygame.display.set_mode((WINDOW_WIDTH,WINDOW_HEIGHT))
-pygame.display.set_caption("The Gambler's Flip 7")
-
-# RULES
-def display_rules(): # FIXME Maybe take in a text file, which contains the rules, to print out rules
-    """Displays Rules"""
-    print("Display rules")
-    pass
-
-
-# SETUP
-# create the deck
-DECK = [Card(0)]
-DISCARD_DECK = []
-for i in range(13): # numbers
-    for j in range(i):
-        DECK.append(Card(i))
-for i in range(13,19): # mods
-    DECK.append(Card(i))
-for i in range(19,22): # actions
-    for j in range(3):
-        DECK.append(Card(i))
-# print(len(DECK),":")
-# for i in DECK:
-#     print(i.value,end=", ")
-
-
-# Create Players #
-players = []
-
-# Ensures the number of players is a valid integer
-while True:
-    try:
-        num_players = int(input("Enter the number of players: ")) 
-        break
-    except ValueError:
-        print("Please enter a valid number")
-
-# Create numbers of players based on input where each player has a name and an id
-for i in range (num_players):
-    player_name = input(f"Enter name of Player {i+1}: ")
-    id = i + 1
-    new_player = Player(player_name, id)
-    players.append(new_player) 
-
-
-# PLAY
-def play():
-    print("Play")
-
-    Card1 = Card(0)
-    
-    # Each player is dealt one card
-
-
-    # game loop begins
-    while True:
-
-        # Allows user to quit game
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                sys.exit()
-        # update variables
-
-        # draw (after update)
-        DISPLAYSURF.fill((255,255,255))
-        Card1.draw(DISPLAYSURF)
-
-        # Responsible for updating your game window with any changes that have been made within that specific iteration of the game loop. 
+# ---------- Target selection overlay ----------
+def choose_target_ui(players, prompt_text, allow_self=True):
+    selecting = True
+    selected = None
+    overlay = pygame.Rect(120, 120, WINDOW_WIDTH - 240, WINDOW_HEIGHT - 240)
+    while selecting:
+        for ev in pygame.event.get():
+            if ev.type == QUIT:
+                pygame.quit(); sys.exit()
+            if ev.type == MOUSEBUTTONDOWN and ev.button == 1:
+                mx,my = ev.pos
+                base_y = overlay.y + 60
+                for i, p in enumerate(players):
+                    if p.busted or p.stayed:
+                        continue
+                    if not allow_self and i == current_target_excluding_index[0]:
+                        continue
+                    row = pygame.Rect(overlay.x + 40, base_y + i*44, overlay.width - 80, 38)
+                    if row.collidepoint(mx,my):
+                        selected = i
+                        selecting = False
+                        break
+            if ev.type == KEYDOWN and ev.key == K_ESCAPE:
+                selected = None
+                selecting = False
+        # draw overlay
+        screen.fill((50,50,50))
+        pygame.draw.rect(screen, (240,240,240), overlay)
+        pygame.draw.rect(screen, (10,10,10), overlay, 3)
+        title = BIG.render(prompt_text, True, (10,10,10))
+        screen.blit(title, (overlay.x + 20, overlay.y + 10))
+        base_y = overlay.y + 60
+        row_i = 0
+        for i, p in enumerate(players):
+            # show all players but mark busted/stayed
+            status = " (BUSTED)" if p.busted else (" (STAYED)" if p.stayed else "")
+            lab = f"{i+1}. {p.name}{status}"
+            rect = pygame.Rect(overlay.x + 40, base_y + row_i*44, overlay.width - 80, 38)
+            pygame.draw.rect(screen, (220,220,220), rect)
+            pygame.draw.rect(screen, (0,0,0), rect, 1)
+            screen.blit(FONT.render(lab, True, (0,0,0)), (rect.x + 8, rect.y + 8))
+            row_i += 1
         pygame.display.update()
+        clock.tick(FPS)
+    return selected
 
+# We use a global container to pass the "exclude self" index into choose_target_ui easily when needed
+current_target_excluding_index = [None]
 
-# MENU
-menu = pygame_menu.Menu("Flip 7", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
-menu.add.button("Rules", display_rules)
-menu.add.button("Play", play)
-menu.add.button("Quit", pygame_menu.events.EXIT)
+# ---------- Resolve drawn card logic (core mechanics) ----------
+def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
+    """Return result codes: 'ok','bust','flip7'"""
+    p = players[player_idx]
 
-menu.mainloop(DISPLAYSURF)
+    # second chance
+    if card_val == 21:
+        if p.has_second:
+            # if already has one, ask target to give to (humans); bots auto give to self's teammate logic (here random active)
+            if p.is_bot:
+                # pick random other active player
+                choices = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed]
+                if choices:
+                    tgt = random.choice(choices)
+                    players[tgt].has_second = True
+            else:
+                # choose target
+                current_target_excluding_index[0] = None
+                tgt = choose_target_ui(players, f"{p.name} drew SECOND — choose target to give it to")
+                if tgt is not None:
+                    players[tgt].has_second = True
+        else:
+            p.has_second = True
+        p.hand.append(21)
+        p.compute_current_score()
+        return "ok"
+
+    # Flip Three 20
+    if card_val == 20:
+        p.hand.append(20)
+        # the player who receives flip3 must accept next 3 cards, flipping them one at a time
+        # they could bust during these flips
+        for _ in range(3):
+            ensure_deck_has_cards(deck, discard)
+            if not deck:
+                break
+            drawn = deck.pop()
+            p.hand.append(drawn)
+            if drawn in range(0,13):
+                nums = [c for c in p.hand if c in range(0,13)]
+                if len(nums) != len(set(nums)):
+                    if p.has_second:
+                        p.hand.pop()
+                        p.has_second = False
+                        if 21 in p.hand:
+                            try: p.hand.remove(21)
+                            except: pass
+                        p.compute_current_score()
+                        continue
+                    else:
+                        discard.extend(p.hand)
+                        p.hand = []
+                        p.busted = True
+                        p.score_current = 0
+                        return "bust"
+            # If drawn is another action (19 or 20) or second chance, we keep and process later per rules
+        # After the 3 flips, process any Flip3/Freeze in hand in order (simple approach)
+        action_cards = [c for c in p.hand if c in (19,20)]
+        for a in action_cards:
+            if p.busted:
+                break
+            p.hand.remove(a)
+            if a == 19:
+                # pick target
+                if p.is_bot:
+                    targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed and i!=player_idx]
+                    if targets:
+                        tgt = random.choice(targets)
+                        targ = players[tgt]
+                        targ.compute_current_score()
+                        targ.score_total += targ.score_current
+                        discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+                else:
+                    current_target_excluding_index[0] = player_idx
+                    tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay")
+                    if tgt is not None:
+                        targ = players[tgt]
+                        targ.compute_current_score()
+                        targ.score_total += targ.score_current
+                        discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+            elif a == 20:
+                # cascade another 3 draws (handled similarly)
+                for _ in range(3):
+                    ensure_deck_has_cards(deck, discard)
+                    if not deck: break
+                    drawn2 = deck.pop()
+                    p.hand.append(drawn2)
+                    if drawn2 in range(0,13):
+                        nums = [c for c in p.hand if c in range(0,13)]
+                        if len(nums) != len(set(nums)):
+                            if p.has_second:
+                                p.hand.pop()
+                                p.has_second = False
+                                if 21 in p.hand:
+                                    try: p.hand.remove(21)
+                                    except: pass
+                            else:
+                                discard.extend(p.hand); p.hand = []; p.busted = True; p.score_current = 0
+                                return "bust"
+        # compute and check flip7
+        p.compute_current_score()
+        if unique_number_count(p.hand) >= 7:
+            p.score_total += 15 + p.score_current
+            discard.extend(p.hand); p.hand = []; p.stayed = True
+            return "flip7"
+        return "ok"
+
+    # Freeze or number/mod/double normal draws
+    p.hand.append(card_val)
+    if card_val in range(0,13):
+        nums = [c for c in p.hand if c in range(0,13)]
+        if len(nums) != len(set(nums)):
+            if p.has_second:
+                p.hand.pop()
+                p.has_second = False
+                if 21 in p.hand:
+                    try: p.hand.remove(21)
+                    except: pass
+                p.compute_current_score()
+                return "second_consumed"
+            else:
+                discard.extend(p.hand); p.hand = []; p.busted = True; p.score_current = 0
+                return "bust"
+    # If freeze drawn during non-flip3 context, we treat it as a card in hand but require immediate resolution
+    if card_val == 19:
+        # freeze: choose target to force to stay
+        if p.is_bot:
+            targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed and i!=player_idx]
+            if targets:
+                tgt = random.choice(targets)
+                targ = players[tgt]
+                targ.compute_current_score(); targ.score_total += targ.score_current
+                discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+        else:
+            current_target_excluding_index[0] = player_idx
+            tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay")
+            if tgt is not None:
+                targ = players[tgt]
+                targ.compute_current_score(); targ.score_total += targ.score_current
+                discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+    p.compute_current_score()
+    if unique_number_count(p.hand) >= 7:
+        p.score_total += 15 + p.score_current
+        discard.extend(p.hand); p.hand = []; p.stayed = True
+        return "flip7"
+    return "ok"
+
+# ---------- UI: buttons and drawing ----------
+def draw_header(title):
+    screen.fill((245,245,245))
+    screen.blit(BIG.render(title, True, (10,10,10)), (18, 10))
+    screen.blit(FONT.render("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu", True, (10,10,10)), (18,50))
+
+def draw_players(players, current_idx, final_info=None):
+    y = ROWS_TOP
+    for i, p in enumerate(players):
+        status = ""
+        if p.busted: status = " (BUSTED)"
+        if p.stayed: status = " (STAYED)"
+        cursor = " <--" if i==current_idx and not p.busted and not p.stayed else ""
+        label = f"{i+1}. {p.name}  Tot:{p.score_total}  Curr:{p.score_current}{status}{cursor}"
+        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-26))
+        x = 18
+        for c in p.hand:
+            screen.blit(get_card_image(c), (x, y))
+            x += CARD_W + CARD_GAP
+        y += CARD_H + 34
+    if final_info:
+        # show final round info box top-right
+        box = pygame.Rect(760, 90, 400, 120)
+        pygame.draw.rect(screen, (230,230,255), box)
+        pygame.draw.rect(screen, (0,0,0), box, 2)
+        screen.blit(FONT.render("FINAL ROUND INFO", True, (0,0,0)), (box.x + 12, box.y + 8))
+        screen.blit(FONT.render(final_info, True, (0,0,0)), (box.x + 12, box.y + 38))
+
+def draw_deck_info(deck, discard):
+    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 58))
+
+# Button helper
+class Button:
+    def __init__(self, rect, label, callback):
+        self.rect = pygame.Rect(rect)
+        self.label = label
+        self.callback = callback
+        self.hover = False
+    def draw(self, surf):
+        col = (180,220,255) if self.hover else (200,200,200)
+        pygame.draw.rect(surf, col, self.rect)
+        pygame.draw.rect(surf, (0,0,0), self.rect, 2)
+        txt = FONT.render(self.label, True, (0,0,0))
+        tw, th = txt.get_size()
+        surf.blit(txt, (self.rect.x + (self.rect.w - tw)//2, self.rect.y + (self.rect.h - th)//2))
+    def handle_event(self, ev):
+        if ev.type == MOUSEMOTION:
+            self.hover = self.rect.collidepoint(ev.pos)
+        if ev.type == MOUSEBUTTONDOWN and ev.button == 1 and self.rect.collidepoint(ev.pos):
+            self.callback()
+
+# ---------- Bot behavior ----------
+def bot_should_hit(p: Player):
+    # Simple heuristic:
+    # - If player has duplicate risk (many unique numbers near 7), play safer.
+    # - Basic rule: hit if current numeric sum < bot_aggr and unique numbers < 7
+    num_sum = sum(c for c in p.hand if c in range(0,13))
+    ucount = unique_number_count(p.hand)
+    # If A LOT of unique numbers but not yet 7, be cautious:
+    if ucount >= 6:
+        return False
+    # else hit if below threshold
+    return num_sum < p.bot_aggr
+
+# ---------- Winner announcement ----------
+def announce_winner(player):
+    screen.fill((200,255,200))
+    screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, (10,10,10)), (80, 320))
+    pygame.display.update()
+    pygame.time.delay(3500)
+
+# ---------- Player setup via pygame_menu (allows add human/bot) ----------
+players_global = []
+def setup_players_gui():
+    # we will present a minimal in-app GUI: list current players and buttons to add human or bot or clear
+    running = True
+    input_text = ""
+    while running:
+        for ev in pygame.event.get():
+            if ev.type == QUIT:
+                pygame.quit(); sys.exit()
+            if ev.type == KEYDOWN:
+                if ev.key == K_BACKSPACE:
+                    input_text = input_text[:-1]
+                elif ev.key == K_RETURN:
+                    if input_text.strip():
+                        players_global.append(Player(input_text.strip(), is_bot=False))
+                        input_text = ""
+                else:
+                    if len(input_text) < 18:
+                        input_text += ev.unicode
+            if ev.type == MOUSEBUTTONDOWN:
+                mx,my = ev.pos
+                # add human button
+                if 920 <= mx <= 920+160 and 120 <= my <= 120+36:
+                    if input_text.strip():
+                        players_global.append(Player(input_text.strip(), is_bot=False))
+                        input_text = ""
+                # add bot button
+                if 920 <= mx <= 920+160 and 170 <= my <= 170+36:
+                    botname = f"Bot_{len([b for b in players_global if b.is_bot])+1}"
+                    players_global.append(Player(botname, is_bot=True))
+                # clear
+                if 920 <= mx <= 920+160 and 230 <= my <= 230+36:
+                    players_global.clear()
+                # start game
+                if 920 <= mx <= 920+160 and 290 <= my <= 290+36:
+                    if players_global:
+                        running = False
+        # draw UI
+        screen.fill((225,225,225))
+        screen.blit(BIG.render("Setup Players", True, (10,10,10)), (40, 20))
+        # input box
+        pygame.draw.rect(screen, (255,255,255), (40,120,420,36))
+        pygame.draw.rect(screen, (0,0,0), (40,120,420,36), 2)
+        screen.blit(FONT.render("Type player name and press 'Add Human' or Enter", True, (10,10,10)), (40,90))
+        screen.blit(FONT.render(input_text, True, (10,10,10)), (46,126))
+        # buttons
+        pygame.draw.rect(screen, (200,200,200), (920,120,160,36)); screen.blit(FONT.render("Add Human", True, (0,0,0)), (940,128))
+        pygame.draw.rect(screen, (200,200,200), (920,170,160,36)); screen.blit(FONT.render("Add Bot", True, (0,0,0)), (952,178))
+        pygame.draw.rect(screen, (200,200,200), (920,230,160,36)); screen.blit(FONT.render("Clear", True, (0,0,0)), (960,236))
+        pygame.draw.rect(screen, (120,200,120), (920,290,160,36)); screen.blit(FONT.render("Start Game", True, (0,0,0)), (948,298))
+        # show current players list
+        yy = 180
+        for i, p in enumerate(players_global):
+            lab = f"{i+1}. {p.name} {'(BOT)' if p.is_bot else '(HUMAN)'}"
+            screen.blit(FONT.render(lab, True, (0,0,0)), (40, yy))
+            yy += 28
+        pygame.display.update()
+        clock.tick(FPS)
+
+# ---------- Main game play (with mouse buttons, bots, improved final UI) ----------
+def play_game_gui():
+    if not players_global:
+        return
+    players = [Player(p.name, is_bot=p.is_bot, bot_aggr=p.bot_aggr) for p in players_global]
+    n = len(players)
+    deck = make_deck()
+    discard = []
+    dealer_idx = 0
+    final_trigger = False
+    triggerer_idx = None
+    final_players_list = []
+
+    # Buttons for current human player
+    hit_btn = Button((820, 640, BUTTON_W, BUTTON_H), "Hit (H)", lambda: action_press("hit"))
+    stay_btn = Button((960, 640, BUTTON_W, BUTTON_H), "Stay (S)", lambda: action_press("stay"))
+    tooltip = ""
+    global last_player_action
+    last_player_action = None
+    action_queue = []  # used to deliver button actions from UI into game loop
+
+    def action_press(kind):
+        action_queue.append(kind)
+
+    running = True
+    while running:
+        # start new round - reset players but preserve totals
+        for p in players:
+            p.reset_for_round()
+        # deal one card to each in order starting with dealer (dealer gets dealt too)
+        order = [(dealer_idx + i) % n for i in range(n)]
+        for idx in order:
+            ensure_deck_has_cards(deck, discard)
+            if not deck: break
+            drawn = deck.pop()
+            resolve_draw(idx, drawn, players, deck, discard, idx)
+        current_idx = (dealer_idx + 1) % n
+
+        # round loop
+        while True:
+            ensure_deck_has_cards(deck, discard)
+            # round end check
+            if all(p.busted or p.stayed for p in players):
+                break
+
+            # skip inactive players
+            if players[current_idx].busted or players[current_idx].stayed:
+                nxt = next_active_index(players, current_idx)
+                if nxt is None: break
+                current_idx = nxt
+                continue
+
+            # draw UI
+            draw_header("Flip 7 — Play")
+            # if final_trigger active, show box
+            final_info = None
+            if final_trigger:
+                remaining_names = ", ".join([players[i].name for i in final_players_list if not players[i].stayed and not players[i].busted])
+                final_info = f"Triggered by {players[triggerer_idx].name}. Remaining: {remaining_names}"
+            draw_players(players, current_idx, final_info)
+            draw_deck_info(deck, discard)
+            # draw buttons for human if current is human
+            hit_btn.draw(screen); stay_btn.draw(screen)
+            # draw tooltip if hovering
+            if hit_btn.hover:
+                tooltip = "Draw a card (keyboard H). If duplicate number -> bust unless you have Second Chance."
+            elif stay_btn.hover:
+                tooltip = "Bank your current points and end your turn (keyboard S)."
+            else:
+                tooltip = ""
+            if tooltip:
+                tbox = pygame.Rect(820, 600, 360, 30)
+                pygame.draw.rect(screen, (255,255,220), tbox); pygame.draw.rect(screen, (0,0,0), tbox, 1)
+                screen.blit(SMALL.render(tooltip, True, (0,0,0)), (tbox.x+6, tbox.y+6))
+            pygame.display.update()
+
+            # handle events and bot decisions
+            event_processed = False
+            # If current is bot, have it act with simple AI
+            if players[current_idx].is_bot:
+                bot = players[current_idx]
+                # small delay to make bots feel human
+                pygame.time.delay(450)
+                if bot.busted or bot.stayed:
+                    event_processed = True
+                else:
+                    if bot_should_hit(bot):
+                        # bot hits
+                        ensure_deck_has_cards(deck, discard)
+                        if deck:
+                            drawn = deck.pop()
+                            res = resolve_draw(current_idx, drawn, players, deck, discard, current_idx)
+                            if res == "flip7":
+                                # round ends
+                                pass
+                    else:
+                        # bot stays
+                        bot.compute_current_score()
+                        bot.score_total += bot.score_current
+                        discard.extend(bot.hand); bot.hand = []; bot.stayed = True
+                        if bot.score_total >= 200 and not final_trigger:
+                            final_trigger = True; triggerer_idx = current_idx
+                            final_players_list = [i for i in range(n) if i != triggerer_idx]
+                    event_processed = True
+                # small break to refresh UI
+                clock.tick(FPS)
+            else:
+                # human: event loop waits for button clicks or keyboard
+                ev = pygame.event.wait()
+                if ev.type == QUIT:
+                    pygame.quit(); sys.exit()
+                if ev.type == KEYDOWN:
+                    if ev.key == K_q:
+                        return
+                    if ev.key == K_h:
+                        action_queue.append("hit")
+                    if ev.key == K_s:
+                        action_queue.append("stay")
+                # pass event to buttons
+                hit_btn.handle_event(ev); stay_btn.handle_event(ev)
+                # process queued actions if any
+                if action_queue:
+                    act = action_queue.pop(0)
+                    if act == "hit":
+                        ensure_deck_has_cards(deck, discard)
+                        if deck:
+                            drawn = deck.pop()
+                            res = resolve_draw(current_idx, drawn, players, deck, discard, current_idx)
+                            if res == "flip7":
+                                # player already banked in resolve_draw
+                                pass
+                    elif act == "stay":
+                        pcur = players[current_idx]
+                        pcur.compute_current_score()
+                        pcur.score_total += pcur.score_current
+                        discard.extend(pcur.hand); pcur.hand = []; pcur.stayed = True
+                        if pcur.score_total >= 200 and not final_trigger:
+                            final_trigger = True; triggerer_idx = current_idx
+                            final_players_list = [i for i in range(n) if i != triggerer_idx]
+                    # continue after action
+                event_processed = True
+
+            # after processing, advance to next active
+            if players[current_idx].busted or players[current_idx].stayed:
+                nxt = next_active_index(players, current_idx)
+                if nxt is None:
+                    break
+                current_idx = nxt
+            else:
+                # if the player acted and still active (hit and didn't bust) we let them choose again; for bots we re-evaluate quickly
+                if players[current_idx].is_bot:
+                    # bot acts until it chooses to stay or bust (handled above)
+                    nxt = next_active_index(players, current_idx)
+                    if nxt is not None:
+                        current_idx = nxt
+                else:
+                    # human remains current until they click stay or hit (we don't auto-advance)
+                    pass
+
+            clock.tick(FPS)
+
+        # Round ended: if final_trigger not active, rotate dealer and continue; if final triggered manage final players list
+        if not final_trigger:
+            dealer_idx = (dealer_idx + 1) % n
+            ensure_deck_has_cards(deck, discard)
+        else:
+            # final extra turns for each player in final_players_list (those other than triggerer)
+            if not final_players_list:
+                # immediate win for triggerer
+                announce_winner(players[triggerer_idx]); return
+            # each player in list gets one full personal round: deal one card and let them play until stay/bust
+            for idx in final_players_list:
+                # skip triggerer if present
+                if idx == triggerer_idx:
+                    continue
+                # reset only that player's round state
+                players[idx].reset_for_round()
+                ensure_deck_has_cards(deck, discard)
+                if deck:
+                    drawn = deck.pop()
+                    resolve_draw(idx, drawn, players, deck, discard, idx)
+                # let this player act until stay/bust
+                while not (players[idx].busted or players[idx].stayed):
+                    draw_header("Final Round — Extra Turn")
+                    draw_players(players, idx, f"Triggerer: {players[triggerer_idx].name}")
+                    draw_deck_info(deck, discard)
+                    hit_btn.draw(screen); stay_btn.draw(screen)
+                    pygame.display.update()
+                    if players[idx].is_bot:
+                        pygame.time.delay(450)
+                        if bot_should_hit(players[idx]):
+                            ensure_deck_has_cards(deck, discard)
+                            if deck:
+                                d = deck.pop(); resolve_draw(idx, d, players, deck, discard, idx)
+                        else:
+                            players[idx].compute_current_score()
+                            players[idx].score_total += players[idx].score_current
+                            discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
+                    else:
+                        ev = pygame.event.wait()
+                        if ev.type == QUIT:
+                            pygame.quit(); sys.exit()
+                        if ev.type == KEYDOWN:
+                            if ev.key == K_h:
+                                ensure_deck_has_cards(deck, discard)
+                                if deck:
+                                    d = deck.pop(); resolve_draw(idx, d, players, deck, discard, idx)
+                            if ev.key == K_s:
+                                players[idx].compute_current_score()
+                                players[idx].score_total += players[idx].score_current
+                                discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
+                        if ev.type == MOUSEMOTION:
+                            hit_btn.handle_event(ev); stay_btn.handle_event(ev)
+                        if ev.type == MOUSEBUTTONDOWN and ev.button == 1:
+                            hit_btn.handle_event(ev); stay_btn.handle_event(ev)
+                    clock.tick(FPS)
+            # after all final players had turns (or were skipped), determine winner
+            top = max(p.score_total for p in players)
+            winners = [p for p in players if p.score_total == top]
+            if len(winners) == 1:
+                announce_winner(winners[0]); return
+            else:
+                # tie: continue playing new rounds until resolved (reset final trigger)
+                final_trigger = False
+                triggerer_idx = None
+                final_players_list = []
+                dealer_idx = (dealer_idx + 1) % n
+                ensure_deck_has_cards(deck, discard)
+
+# ---------- Menu ----------
+def show_rules():
+    showing = True
+    while showing:
+        for ev in pygame.event.get():
+            if ev.type == QUIT:
+                pygame.quit(); sys.exit()
+            if ev.type == KEYDOWN and ev.key == K_SPACE:
+                showing = False
+        screen.fill((210,230,255))
+        draw_header("Flip 7 — Official Rules (press SPACE to close)")
+        lines = [
+            "Deck: 1x0, 1x1, 2x2, 3x3 ... 12x12.",
+            "Modifiers: +2, +4, +6, +8, +10 and X2 (one each).",
+            "Actions: Flip Three, Freeze, Second Chance (3 each).",
+            "On your turn: Hit to draw or Stay to bank your points.",
+            "If you draw a duplicate number card you bust (score 0) unless you have Second Chance.",
+            "Flip 7: 7 unique number cards ends the round and gives +15 bonus (you bank points).",
+            "Flip3: draw next 3 cards immediately (can cascade).",
+            "Freeze: choose a target player to force them to Stay (they bank their current points).",
+            "Second Chance: keep until it prevents one bust and is consumed.",
+            "Scoring: (sum numbers) * X2(if present) + modifiers.",
+            "First to reach >=200 triggers final round — each other player gets one final turn."
+        ]
+        y = 120
+        for l in lines:
+            screen.blit(FONT.render(l, True, (10,10,10)), (30, y)); y+=26
+        pygame.display.update()
+        clock.tick(FPS)
+
+def start_menu():
+    menu = pygame_menu.Menu("Flip 7 (full)", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
+    menu.add.button("Setup players (GUI)", setup_players_gui)
+    menu.add.button("Rules", show_rules)
+    menu.add.button("Play", lambda: play_game_gui())
+    menu.add.button("Quit", pygame_menu.events.EXIT)
+    menu.mainloop(screen)
+
+if __name__ == "__main__":
+    start_menu()
