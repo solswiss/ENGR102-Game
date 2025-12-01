@@ -189,7 +189,7 @@ class Player:
         """ Ends player turn"""
         self.turn = False
 
-    def win(self):
+    def win(self): # FIXME may need to change since more than one player at the end of the round may have over 200 points, the highets of them is considered the winner
         """ Player wins when reaching 200 points or more"""
         if (self.score_total > 200):
             self.winner = True
@@ -311,6 +311,9 @@ def play():
 
     Card1 = Card(0)
     
+    # Each player is dealt one card
+
+
     # game loop begins
     while True:
 
