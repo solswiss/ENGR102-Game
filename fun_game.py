@@ -154,7 +154,9 @@ class Card(pygame.sprite.Sprite):
 
 # Player
 class Player:
-    def __init__(self):
+    def __init__(self, name, id):
+        self.name = name
+        self.id = id
         self.player_deck = []
         self.score_total = 0
         self.score_current = 0
@@ -240,7 +242,7 @@ DISPLAYSURF = pygame.display.set_mode((WINDOW_WIDTH,WINDOW_HEIGHT))
 pygame.display.set_caption("The Gambler's Flip 7")
 
 # RULES
-def display_rules():
+def display_rules(): # FIXME Maybe take in a text file, which contains the rules, to print out rules
     """Displays Rules"""
     print("Display rules")
     pass
@@ -262,16 +264,23 @@ for i in range(19,22): # actions
 #     print(i.value,end=", ")
 
 
+# Create Players
+    num_players = int(input("Enter the number of players: ")) 
+    players = []
+
+    for i in range (num_players):
+        player_name = input(f"Enter name of Player {i+1}: ")
+        id = i + 1
+        new_player = Player(player_name, id)
+        players.append(new_player) 
+
 # PLAY
 def play():
     print("Play")
 
     Card1 = Card(0)
     
-    # Create Players
-    player_1 = Player()
-    player_1.hit()
-    print(player_1.score_current)
+    
 
     # game loop begins
     while True:
