@@ -158,14 +158,20 @@ class Card(pygame.sprite.Sprite):
 
 # Player
 class Player:
+    
+    # Player constructor taking in name and id
     def __init__(self, name, id):
         self.name = name
         self.id = id
+
         self.player_deck = []
+
         self.score_total = 0
         self.score_current = 0
+
         self.turn = False
         self.round = False
+        self.winner = False
 
     def start_round(self):
         "Start the round for player"
@@ -182,6 +188,10 @@ class Player:
     def end_turn(self):
         """ Ends player turn"""
         self.turn = False
+
+    def win(self):
+        """ Player wins when reaching 200 points or more"""
+        self.winner = True
 
     def hit(self): 
         """ Adds a random card from the deck to the player's deck"""
@@ -290,7 +300,7 @@ for i in range (num_players):
     id = i + 1
     new_player = Player(player_name, id)
     players.append(new_player) 
-
+    
 
 # PLAY
 def play():
