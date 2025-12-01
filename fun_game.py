@@ -109,9 +109,13 @@ def duplicate_number_cards(deck):
     else:
         return False
     
-def shuffle(deck):
-    "Shuffles the deck"
-    random.shuffle(deck)
+def classic_shuffle(deck):
+    "Shuffles the deck given the deck and returns the shuffled deck"
+    return random.shuffle(deck)
+
+def discard_deck(deck, discarded_deck):
+    """" Discards a deck of cards after players have stayed given the deck to discard and discarded deck"""
+    discarded_deck.append(deck)
 
 class CardType(Enum):
     ZERO = 0
@@ -197,17 +201,21 @@ class Player:
 
         self.score()
 
+    def end(self):
+        """ Automatically ends a player's turn during that round and discard their cards"""
+        discard_deck(DISCARD_DECK, self.player_deck)
+        self.end_turn()
+        self.end_round()
+
     def bust(self):
         " Player turn ends when getting duplicate number cards"
         self.score_current = 0
-        self.end_turn()
-        self.end_round()
-        
+        self.end()
+
     def stay(self):
         """ Compute the Player's current score and ends their turn"""
         self.score_total += self.score_current
-        self.end_turn()
-        self.end_round()
+        self.end()
     
     def flip_7(self):
         """If the deck has 7 unique number cards, player gains 15 points bonus and game ends"""
@@ -226,7 +234,7 @@ class Player:
         "The player banks all the points they have collected and is out of the round."
         self.stay()
 
-    def flip_3(self):
+    def flip_3(self): #FIXME need to make sure card is removed after use
         """The player who receives this card must accept the next three cards, flipping them one at a time."""
         for i in range(3):
             self.hit()
@@ -251,6 +259,7 @@ def display_rules(): # FIXME Maybe take in a text file, which contains the rules
 # SETUP
 # create the deck
 DECK = [Card(0)]
+DISCARD_DECK = []
 for i in range(13): # numbers
     for j in range(i):
         DECK.append(Card(i))
@@ -264,7 +273,7 @@ for i in range(19,22): # actions
 #     print(i.value,end=", ")
 
 
-# Create Players
+# Create Players #
 players = []
 
 # Ensures the number of players is a valid integer
@@ -275,11 +284,13 @@ while True:
     except ValueError:
         print("Please enter a valid number")
 
+# Create numbers of players based on input where each player has a name and an id
 for i in range (num_players):
     player_name = input(f"Enter name of Player {i+1}: ")
     id = i + 1
     new_player = Player(player_name, id)
     players.append(new_player) 
+
 
 # PLAY
 def play():
@@ -287,8 +298,6 @@ def play():
 
     Card1 = Card(0)
     
-    
-
     # game loop begins
     while True:
 
