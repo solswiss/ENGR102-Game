@@ -191,7 +191,10 @@ class Player:
 
     def win(self):
         """ Player wins when reaching 200 points or more"""
-        self.winner = True
+        if (self.score_total > 200):
+            self.winner = True
+        else:
+            self.winner = False
 
     def hit(self): 
         """ Adds a random card from the deck to the player's deck"""
@@ -300,7 +303,7 @@ for i in range (num_players):
     id = i + 1
     new_player = Player(player_name, id)
     players.append(new_player) 
-    
+
 
 # PLAY
 def play():
