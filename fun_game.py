@@ -9,7 +9,7 @@ FPS = 60
 CARD_W, CARD_H = 88, 128
 CARD_GAP = 8
 ROWS_TOP = 210
-ASSET_FOLDER = "cards_video"
+ASSET_FOLDER = "assets"
 BUTTON_W = 120
 BUTTON_H = 44
 BOT_HIT_THRESHOLD = 16   # lower -> more conservative bots; higher -> more aggressive
@@ -30,22 +30,22 @@ LABEL_MAP = {18: "X2", 19: "FREEZE", 20: "FLIP3", 21: "SECOND"}
 # ---------- Image loading (cached) ----------
 IMAGE_CACHE = {}
 def load_card_image(val):
-    candidates = []
+    p = ""
     if val in range(0, 13):
-        candidates = [f"{ASSET_FOLDER}/num_{val}.png", f"{ASSET_FOLDER}/{val}.png", f"{val}.png"]
+        p = f"{ASSET_FOLDER}/cardnum{val}.png"
     elif val in MODIFIER_MAP:
-        candidates = [f"{ASSET_FOLDER}/mod_{val}.png", f"{ASSET_FOLDER}/mod{val}.png", f"{ASSET_FOLDER}/{val}.png"]
+        p = f"{ASSET_FOLDER}/plus{(val-12)*2}.png"
     else:
-        name_map = {18: "double_18", 19: "freeze_19", 20: "flip3_20", 21: "chance_21"}
+        name_map = {18: "times2", 19: "freeze", 20: "flipthree", 21: "secondchance"}
         base = name_map.get(val, f"card_{val}")
-        candidates = [f"{ASSET_FOLDER}/{base}.png", f"{base}.png"]
-    for p in candidates:
-        try:
-            img = pygame.image.load(p).convert_alpha()
-            img = pygame.transform.smoothscale(img, (CARD_W, CARD_H))
-            return img
-        except Exception:
-            continue
+        p = f"{ASSET_FOLDER}/{base}.png"
+    try:
+        img = pygame.image.load(p).convert_alpha()
+        img = pygame.transform.smoothscale(img, (CARD_W, CARD_H))
+        return img
+    except Exception:
+        pass
+
     # fallback render
     surf = pygame.Surface((CARD_W, CARD_H))
     surf.fill((250, 250, 250))
