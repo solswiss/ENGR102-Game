@@ -1,0 +1,33 @@
+{
+    "button":
+    {
+        "colors":
+        {
+            "normal_border": "Black",
+            "hovered_border": "Black",
+            "selected_border": "Black",
+            "active_border": "Blue",
+            "normal_text": "Black",
+            "hovered_text": "Black",
+            "selected_text": "Black",
+            "active_text": "Blue",
+            "normal_bg": "White",
+            "disabled_bg": "White",
+            "hovered_bg": "White",
+            "selected_bg": "White",
+            "active_bg":"White"
+        },
+        "font": {
+            "name": "ComicSans",
+            "size":"36",
+            "bold":"0",
+            "italic":"0"
+        },
+        "misc":
+        {
+            "shape": "rounded_rectangle",
+            "shape_corner_radius": "6",
+            "border_width": "2"
+        }
+    }
+}

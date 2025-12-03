@@ -1,4 +1,5 @@
 import pygame, sys, random, pygame_menu
+import pygame_gui
 from pygame.locals import *
 from math import floor
 
@@ -10,8 +11,8 @@ CARD_W, CARD_H = 88, 128
 CARD_GAP = 8
 ROWS_TOP = 210
 ASSET_FOLDER = "assets"
-BUTTON_W = 120
-BUTTON_H = 44
+BUTTON_W = 140
+BUTTON_H = 60
 BOT_HIT_THRESHOLD = 16   # lower -> more conservative bots; higher -> more aggressive
 # ----------------------------
 
@@ -19,9 +20,12 @@ pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption("Flip 7 — Full (Bots + Mouse UI + Video Cards)")
 clock = pygame.time.Clock()
-FONT = pygame.font.SysFont(None, 20)
-BIG = pygame.font.SysFont(None, 34)
-SMALL = pygame.font.SysFont(None, 16)
+FONT = pygame.font.SysFont("ComicSans", 32)
+BIG = pygame.font.SysFont("ComicSans", 64)
+SMALL = pygame.font.SysFont("ComicSans", 24)
+
+# GUI
+GUI_MANAGER = pygame_gui.UIManager((WINDOW_WIDTH, WINDOW_HEIGHT), theme_path="gui.json")
 
 # Card constants
 MODIFIER_MAP = {13: 2, 14: 4, 15: 6, 16: 8, 17: 10}
@@ -325,9 +329,11 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
 
 # ---------- UI: buttons and drawing ----------
 def draw_header(title):
-    screen.fill((245,245,245))
-    screen.blit(BIG.render(title, True, (10,10,10)), (18, 10))
-    screen.blit(FONT.render("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu", True, (10,10,10)), (18,50))
+    x,y = 50,20
+    screen.blit(BIG.render(title, True, (0,0,0)), (x, y))
+def draw_subtitle(title):
+    x,y = 50,20
+    screen.blit(FONT.render(title, True, (0,0,0)), (x,y+100))
 
 def draw_players(players, current_idx, final_info=None):
     y = ROWS_TOP
@@ -400,11 +406,49 @@ def setup_players_gui():
     # we will present a minimal in-app GUI: list current players and buttons to add human or bot or clear
     running = True
     input_text = ""
+    # input box
+    input_rect = pygame.Rect((50,200,400,50))
+    # BUTTONS
+    x,y = WINDOW_WIDTH-280, 120
+    btn_w = BUTTON_W * 3/2
+    # return home button
+    return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
+    # add human button
+    add_human_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y),(btn_w,BUTTON_H)), text="Add Human", manager=GUI_MANAGER)
+    # add bot button
+    add_bot_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+BUTTON_H+20),(btn_w,BUTTON_H)), text="Add Bot", manager=GUI_MANAGER)
+    # clear all button
+    clear_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+(BUTTON_H+20)*2),(btn_w,BUTTON_H)), text="Clear", manager=GUI_MANAGER)
+
     while running:
         for ev in pygame.event.get():
             if ev.type == QUIT:
                 pygame.quit(); sys.exit()
-            if ev.type == KEYDOWN:
+            
+            GUI_MANAGER.process_events(ev)
+            if ev.type == pygame_gui.UI_BUTTON_PRESSED:
+                # add human button
+                if ev.ui_element == add_human_btn:
+                    if input_text.strip():
+                        players_global.append(Player(input_text.strip(), is_bot=False))
+                        input_text = ""
+                    else:
+                        players_global.append(Player(f"Player {len(players_global)+1}", is_bot=False))
+                # add bot button
+                if ev.ui_element == add_bot_btn:
+                    botname = f"Bot_{len([b for b in players_global if b.is_bot])+1}"
+                    players_global.append(Player(botname, is_bot=True))
+                # clear
+                if ev.ui_element == clear_btn:
+                    players_global.clear()
+                # start game
+                # if 920 <= mx <= 920+160 and 290 <= my <= 290+36:
+                #     if players_global:
+                #         running = False
+                # return
+                if ev.ui_element == return_btn:
+                    running = False
+            elif ev.type == KEYDOWN:
                 if ev.key == K_BACKSPACE:
                     input_text = input_text[:-1]
                 elif ev.key == K_RETURN:
@@ -414,45 +458,25 @@ def setup_players_gui():
                 else:
                     if len(input_text) < 18:
                         input_text += ev.unicode
-            if ev.type == MOUSEBUTTONDOWN:
-                mx,my = ev.pos
-                # add human button
-                if 920 <= mx <= 920+160 and 120 <= my <= 120+36:
-                    if input_text.strip():
-                        players_global.append(Player(input_text.strip(), is_bot=False))
-                        input_text = ""
-                # add bot button
-                if 920 <= mx <= 920+160 and 170 <= my <= 170+36:
-                    botname = f"Bot_{len([b for b in players_global if b.is_bot])+1}"
-                    players_global.append(Player(botname, is_bot=True))
-                # clear
-                if 920 <= mx <= 920+160 and 230 <= my <= 230+36:
-                    players_global.clear()
-                # start game
-                if 920 <= mx <= 920+160 and 290 <= my <= 290+36:
-                    if players_global:
-                        running = False
+        
         # draw UI
         screen.fill((225,225,225))
-        screen.blit(BIG.render("Setup Players", True, (10,10,10)), (40, 20))
-        # input box
-        pygame.draw.rect(screen, (255,255,255), (40,120,420,36))
-        pygame.draw.rect(screen, (0,0,0), (40,120,420,36), 2)
-        screen.blit(FONT.render("Type player name and press 'Add Human' or Enter", True, (10,10,10)), (40,90))
-        screen.blit(FONT.render(input_text, True, (10,10,10)), (46,126))
-        # buttons
-        pygame.draw.rect(screen, (200,200,200), (920,120,160,36)); screen.blit(FONT.render("Add Human", True, (0,0,0)), (940,128))
-        pygame.draw.rect(screen, (200,200,200), (920,170,160,36)); screen.blit(FONT.render("Add Bot", True, (0,0,0)), (952,178))
-        pygame.draw.rect(screen, (200,200,200), (920,230,160,36)); screen.blit(FONT.render("Clear", True, (0,0,0)), (960,236))
-        pygame.draw.rect(screen, (120,200,120), (920,290,160,36)); screen.blit(FONT.render("Start Game", True, (0,0,0)), (948,298))
+        pygame.draw.rect(screen,(255,255,255),input_rect,border_radius=6)
+        pygame.draw.rect(screen,(0,0,0),input_rect,2,border_radius=6)
+        screen.blit(FONT.render(input_text, True, (10,10,10)), (60,200))
+        draw_header("Setup Game")
+        draw_subtitle("Type player name and press 'Add Human' or Enter")
         # show current players list
-        yy = 180
+        yy = 300
         for i, p in enumerate(players_global):
             lab = f"{i+1}. {p.name} {'(BOT)' if p.is_bot else '(HUMAN)'}"
             screen.blit(FONT.render(lab, True, (0,0,0)), (40, yy))
-            yy += 28
+            yy += 32
+        
+        time_delta = clock.tick(FPS)
+        GUI_MANAGER.update(time_delta)
+        GUI_MANAGER.draw_ui(screen)
         pygame.display.update()
-        clock.tick(FPS)
 
 # ---------- Main game play (with mouse buttons, bots, improved final UI) ----------
 def play_game_gui():
@@ -508,6 +532,7 @@ def play_game_gui():
 
             # draw UI
             draw_header("Flip 7 — Play")
+            draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
             # if final_trigger active, show box
             final_info = None
             if final_trigger:
@@ -638,6 +663,7 @@ def play_game_gui():
                 # let this player act until stay/bust
                 while not (players[idx].busted or players[idx].stayed):
                     draw_header("Final Round — Extra Turn")
+                    draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
                     draw_players(players, idx, f"Triggerer: {players[triggerer_idx].name}")
                     draw_deck_info(deck, discard)
                     hit_btn.draw(screen); stay_btn.draw(screen)
@@ -686,40 +712,59 @@ def play_game_gui():
 # ---------- Menu ----------
 def show_rules():
     showing = True
+
+    # return home button
+    return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
+
     while showing:
         for ev in pygame.event.get():
             if ev.type == QUIT:
                 pygame.quit(); sys.exit()
-            if ev.type == KEYDOWN and ev.key == K_SPACE:
-                showing = False
-        screen.fill((210,230,255))
-        draw_header("Flip 7 — Official Rules (press SPACE to close)")
+            if ev.type == pygame_gui.UI_BUTTON_PRESSED:
+                if ev.ui_element == return_btn:
+                    showing = False
+            GUI_MANAGER.process_events(ev)
+        screen.fill((255,255,255))
+        draw_header("Flip 7 Rules")
+        draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
         lines = [
             "Deck: 1x0, 1x1, 2x2, 3x3 ... 12x12.",
             "Modifiers: +2, +4, +6, +8, +10 and X2 (one each).",
             "Actions: Flip Three, Freeze, Second Chance (3 each).",
-            "On your turn: Hit to draw or Stay to bank your points.",
-            "If you draw a duplicate number card you bust (score 0) unless you have Second Chance.",
-            "Flip 7: 7 unique number cards ends the round and gives +15 bonus (you bank points).",
-            "Flip3: draw next 3 cards immediately (can cascade).",
-            "Freeze: choose a target player to force them to Stay (they bank their current points).",
-            "Second Chance: keep until it prevents one bust and is consumed.",
+            "",
+            "> On your turn: Hit to draw or Stay to bank your points.",
+            "> If you draw a duplicate number card you bust (score 0)", "  unless you have Second Chance.",
+            "",
+            "> [Flip 7] 7 unique number cards ends the round and gives +15 bonus",
+            "  (you bank points).",
+            "> [Flip3] draw next 3 cards immediately (can cascade).",
+            "> [Freeze] choose a target player to force them to Stay and",
+            "  they bank their current points.",
+            "> [Second Chance] keep until it prevents one bust and is consumed.",
+            "",
             "Scoring: (sum numbers) * X2(if present) + modifiers.",
-            "First to reach >=200 triggers final round — each other player gets one final turn."
+            "> First to reach >=200 triggers final round and",
+            "  each other player gets one final turn."
         ]
-        y = 120
+        x,y = 50, 160
         for l in lines:
-            screen.blit(FONT.render(l, True, (10,10,10)), (30, y)); y+=26
+            screen.blit(SMALL.render(l, True, (0,0,0)), (x, y))
+            y+=28
+        
+        time_delta = clock.tick(FPS)
+        GUI_MANAGER.update(time_delta)
+        GUI_MANAGER.draw_ui(screen)
         pygame.display.update()
-        clock.tick(FPS)
 
 def start_menu():
-    menu = pygame_menu.Menu("Flip 7 (full)", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
-    menu.add.button("Setup players (GUI)", setup_players_gui)
+    menu = pygame_menu.Menu("Flip 7", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
     menu.add.button("Rules", show_rules)
+    menu.add.button("Setup", setup_players_gui)
     menu.add.button("Play", lambda: play_game_gui())
     menu.add.button("Quit", pygame_menu.events.EXIT)
     menu.mainloop(screen)
+
+print(screen.get_width())
 
 if __name__ == "__main__":
     start_menu()
