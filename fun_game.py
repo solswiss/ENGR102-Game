@@ -64,7 +64,9 @@ DECK_POS = (820, 80)
 # ---------- Image loading (cached) ----------
 IMAGE_CACHE = {}
 def load_card_image(val):
+    """ Takes in a number value and returns the card's image surface """
     def try_load(pathlist):
+        """ Takes in the file path of the card image and returns a formatted image if possible, otherwise return None"""
         for p in pathlist:
             if not p:
                 continue
@@ -104,12 +106,14 @@ def load_card_image(val):
     return surf
 
 def get_card_image(v):
+    """ Given the card value, returns the associated card image from the image dictionary"""
     if v not in IMAGE_CACHE:
         IMAGE_CACHE[v] = load_card_image(v)
     return IMAGE_CACHE[v]
 
 # back image loader
 def load_back_image():
+    """ Returns the image surface of the back card"""
     paths = [
         os.path.join(ASSET_FOLDER, "back.png"),
         os.path.join(ASSET_FOLDER, "back.PNG"),
@@ -131,12 +135,14 @@ def load_back_image():
     return surf
 
 def get_back_image():
+    """ Return the back card image from the image dicitonary"""
     if 'BACK' not in IMAGE_CACHE:
         IMAGE_CACHE['BACK'] = load_back_image()
     return IMAGE_CACHE['BACK']
 
 # ---------- Deck builder ----------
 def make_deck():
+    """ Create a deck of cards, returns it as a list"""
     deck = []
     deck.extend([0]*1)
     for v in range(1, 13):
@@ -153,6 +159,7 @@ def make_deck():
 # ---------- Player ----------
 class Player:
     def __init__(self, name, is_bot=False, bot_aggr=BOT_HIT_THRESHOLD):
+        """Create the constructor fo the Player class. Takes in a name,  is bot (default False), and bot agression (default is a constant)"""
         self.name = name
         self.is_bot = is_bot
         self.bot_aggr = bot_aggr
@@ -165,6 +172,7 @@ class Player:
         self.score_total = 0
 
     def reset_for_round(self):
+        """ Resets the round of the player by settings all attributes to its initialized state except the total score"""
         self.hand = []
         self.hand_face = []
         self.has_second = False
@@ -173,6 +181,7 @@ class Player:
         self.score_current = 0
 
     def compute_current_score(self):
+        """ Calculate the player's current score"""
         num_sum = sum(c for c in self.hand if c in range(0,13))
         mul = 2 if 18 in self.hand else 1
         mod_sum = sum(MODIFIER_MAP[c] for c in self.hand if c in MODIFIER_MAP)
@@ -181,15 +190,18 @@ class Player:
 
     # helpers
     def add_card(self, card_val, face_up=True):
+        """ Takes in a card value and add it to the player's hand"""
         self.hand.append(card_val)
         self.hand_face.append(bool(face_up))
 
     def pop_last(self):
+        """" Remove the player's latest card"""
         if not self.hand: return None
         self.hand_face.pop()
         return self.hand.pop()
 
     def remove_card_value(self, value):
+        """Takes a card and remove it from the player's hand"""
         # remove first occurrence synchronously for hand and hand_face
         for i, v in enumerate(self.hand):
             if v == value:
@@ -200,13 +212,16 @@ class Player:
 
 # ---------- Helpers ----------
 def unique_number_count(hand):
+    """ Takes in a hand and return the number of unique number cards"""
     return len(set([c for c in hand if c in range(0,13)]))
 
 def has_duplicate_number(hand):
+    """ Takes a hand and return True if there is a duplicate card and False is there isn't"""
     nums = [c for c in hand if c in range(0,13)]
     return len(nums) != len(set(nums))
 
 def next_active_index(players, start_idx):
+    """ Takes in the list of players and a starting index, returns the index of the player of the next active player. If no more active players, return None"""
     n = len(players)
     for i in range(1, n+1):
         idx = (start_idx + i) % n
@@ -215,21 +230,25 @@ def next_active_index(players, start_idx):
     return None
 
 def ensure_deck_has_cards(deck, discard):
+    """ Checks the if the deck has cards, if not, add discard cards back to the deck and shuffle """
     if not deck and discard:
         deck.extend(discard)
         discard.clear()
         random.shuffle(deck)
 
 def active_player_indices(players):
+    """ Takes in a list of players and returns list of active players indexes"""
     return [i for i,p in enumerate(players) if not p.busted and not p.stayed]
 
 # ---------- UI helpers ----------
 def player_hand_pos(player_index, card_index):
+    """ Takes in a player's index and card index's, return the card position as a tuple of (x,y)"""
     x = 18 + card_index * (CARD_W + CARD_GAP)
     y = ROWS_TOP + player_index * (CARD_H + 34)
     return x, y
 
 def draw_header(title):
+    """ Takes in a string and creates a header"""
     # header with boxed background so text doesn't bleed
     screen.fill((245,245,245))
     hdr_rect = pygame.Rect(12, 8, 760, 80)
@@ -238,6 +257,7 @@ def draw_header(title):
     
 
 def draw_players(players, current_idx, final_info=None):
+    """ Takes in a list of players, current index, and final info (default None) and display each players' information"""
     y = ROWS_TOP
     back_img = get_back_image()
     for i, p in enumerate(players):
@@ -264,6 +284,7 @@ def draw_players(players, current_idx, final_info=None):
 
     # draw deck (so deck is under final-info box)
 def draw_deck_info(deck, discard):
+    """ Takes in a deck and discard deck and displays the current decks' info """
     # small background area for deck info so text doesn't bleed
     rect = pygame.Rect(WINDOW_WIDTH-380, 48, 360, 44)
     pygame.draw.rect(screen, (255,255,255), rect)
@@ -275,6 +296,7 @@ def draw_deck_info(deck, discard):
         screen.blit(get_back_image(), top_rect.topleft)
 
 def draw_final_info_box(final_info):
+    """ Takes in the final info (string) and displays it on the screen"""
     # draw final info on top of everything (call after draw_deck_info/draw_players)
     if not final_info:
         return
@@ -299,6 +321,7 @@ def draw_final_info_box(final_info):
 
 # ---------- Message overlay (for busts, flip7, etc.) ----------
 def show_message(text, ms=MESSAGE_MS):
+    """ Takes in a text and how long it should be displayed for (default is MESSAGE_MS), finally overlaying`1 the text on the screen"""
     overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
     overlay.fill((0,0,0,140))
     screen.blit(overlay, (0,0))
@@ -319,6 +342,7 @@ def show_message(text, ms=MESSAGE_MS):
 
 # ---------- animation: animate moving a card from deck to player's hand ----------
 def animate_card_move(card_val, target_idx, target_slot_index, duration_ms):
+    """Takes in the card value, target index, target slot index, and time to animate a card from the deck to the player's hand"""
     start_x, start_y = DECK_POS
     end_x, end_y = player_hand_pos(target_idx, target_slot_index)
     img = get_card_image(card_val)   # face image while moving (requested)
@@ -344,6 +368,7 @@ flip3_state = {'active': False, 'initiator': None, 'target': None, 'remaining': 
 
 # ---------- Target selection overlay ----------
 def choose_target_ui(players, prompt_text, allowed_indices=None):
+    """ Takes in a list of players, prompt, and allowed indices (default None) and displays the target selection overlay, which list available targets"""
     selecting = True
     selected = None
     overlay = pygame.Rect(120, 120, WINDOW_WIDTH - 240, WINDOW_HEIGHT - 240)
@@ -401,6 +426,7 @@ current_global_discard = [None]
 # ---------- Resolve drawn card logic (core mechanics) ----------
 def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
     """
+    Takes in the player index, card  value, list of players, deck, discard deck, and the current player index
     Returns: 'ok','bust','flip7','second_consumed','pending_flip3'
     """
     p = players[player_idx]
@@ -624,11 +650,13 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
 # ---------- UI Button helper ----------
 class Button:
     def __init__(self, rect, label, callback):
+        """ Button constructor that takes in a rectangle, label and a callback"""
         self.rect = pygame.Rect(rect)
         self.label = label
         self.callback = callback
         self.hover = False
     def draw(self, surf):
+        """ Takes in a surface and displays it"""
         col = (180,220,255) if self.hover else (200,200,200)
         pygame.draw.rect(surf, col, self.rect)
         pygame.draw.rect(surf, (0,0,0), self.rect, 2)
@@ -636,6 +664,7 @@ class Button:
         tw, th = txt.get_size()
         surf.blit(txt, (self.rect.x + (self.rect.w - tw)//2, self.rect.y + (self.rect.h - th)//2))
     def handle_event(self, ev):
+        """ Takes an event object and determines actions based on type of event """
         if ev.type == MOUSEMOTION:
             self.hover = self.rect.collidepoint(ev.pos)
         if ev.type == MOUSEBUTTONDOWN and ev.button == 1 and self.rect.collidepoint(ev.pos):
@@ -643,6 +672,7 @@ class Button:
 
 # ---------- Bot simple heuristic ----------
 def bot_should_hit(p: Player):
+    """ Takes in a player and returns True if the bot should hit or False if bot should not heat"""
     num_sum = sum(c for c in p.hand if c in range(0,13))
     ucount = unique_number_count(p.hand)
     if ucount >= 6:
@@ -651,6 +681,7 @@ def bot_should_hit(p: Player):
 
 # ---------- Winner announce ----------
 def announce_winner(player):
+    """ Takes in a player and displays text to announce them as the winner"""
     screen.fill((200,255,200))
     screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, (10,10,10)), (80, 320))
     pygame.display.update()
@@ -659,7 +690,7 @@ def announce_winner(player):
 # ---------- Setup GUI (combined start/setup) ----------
 players_global = []
 def setup_players_gui():
-    # minimal in-app GUI using pygame_gui; allows add human/bot/clear/start
+    """ minimal in-app GUI using pygame_gui; allows add human/bot/clear/start"""
     running = True
     input_text = ""
     input_rect = pygame.Rect((50,200,400,50))
@@ -738,11 +769,13 @@ def setup_players_gui():
 
 # small helper for header rendering reused in rules
 def draw_subtitle(text):
+    """ Takes in a text and displays a small subtitle"""
     sub = SMALL.render(text, True, (0,0,0))
     screen.blit(sub, (18, 90))
 
 # ---------- Main gameplay (uses combined GUI and fixed behaviors) ----------
 def play_game_gui():
+    """" Displays the playing GUIs"""
     if not players_global:
         return
     players = [Player(p.name, is_bot=p.is_bot, bot_aggr=p.bot_aggr) for p in players_global]
@@ -760,7 +793,9 @@ def play_game_gui():
     return_btn_ui = Button((WINDOW_WIDTH-200, 20, BUTTON_W, BUTTON_H), "Return", lambda: action_press("return"))
     tooltip = ""
     action_queue = []
-    def action_press(kind): action_queue.append(kind)
+    def action_press(kind): 
+        """ Takes in a kind of action and adds it to the action queue"""
+        action_queue.append(kind)
 
     running = True
     while running:
@@ -1093,6 +1128,7 @@ def play_game_gui():
 
 # ---------- Rules screen ----------
 def show_rules():
+    " Show the rules GUI"
     showing = True
     return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
     while showing:
@@ -1135,6 +1171,7 @@ def show_rules():
 
 # ---------- Main menu ----------
 def start_menu():
+    """ Initialize the start of the game menu"""
     menu = pygame_menu.Menu("Flip 7", WINDOW_WIDTH, WINDOW_HEIGHT, theme=pygame_menu.themes.THEME_BLUE)
     # combined Start / Setup: Setup opens the in-app setup which then starts game
     menu.add.button("Rules", show_rules)
