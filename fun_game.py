@@ -2,6 +2,7 @@ import pygame, sys, random, pygame_menu
 import pygame_gui
 from pygame.locals import *
 from math import floor
+import time
 
 # ---------- CONFIG ----------
 WINDOW_WIDTH = 1200
@@ -132,7 +133,7 @@ def ensure_deck_has_cards(deck, discard):
         random.shuffle(deck)
 
 # ---------- Target selection overlay ----------
-def choose_target_ui(players, prompt_text, allow_self=True):
+def choose_target_ui(players, prompt_text, allow_self=True): #FIXME this doesn't work well
     selecting = True
     selected = None
     overlay = pygame.Rect(120, 120, WINDOW_WIDTH - 240, WINDOW_HEIGHT - 240)
@@ -142,7 +143,7 @@ def choose_target_ui(players, prompt_text, allow_self=True):
                 pygame.quit(); sys.exit()
             if ev.type == MOUSEBUTTONDOWN and ev.button == 1:
                 mx,my = ev.pos
-                base_y = overlay.y + 60
+                base_y = overlay.y + 70
                 for i, p in enumerate(players):
                     if p.busted or p.stayed:
                         continue
@@ -160,14 +161,14 @@ def choose_target_ui(players, prompt_text, allow_self=True):
         screen.fill((50,50,50))
         pygame.draw.rect(screen, (240,240,240), overlay)
         pygame.draw.rect(screen, (10,10,10), overlay, 3)
-        title = BIG.render(prompt_text, True, (10,10,10))
+        title = SMALL.render(prompt_text, True, (10,10,10))
         screen.blit(title, (overlay.x + 20, overlay.y + 10))
         base_y = overlay.y + 60
         row_i = 0
         for i, p in enumerate(players):
             # show all players but mark busted/stayed
             status = " (BUSTED)" if p.busted else (" (STAYED)" if p.stayed else "")
-            lab = f"{i+1}. {p.name}{status}"
+            lab = f"{p.name}{status}"
             rect = pygame.Rect(overlay.x + 40, base_y + row_i*44, overlay.width - 80, 38)
             pygame.draw.rect(screen, (220,220,220), rect)
             pygame.draw.rect(screen, (0,0,0), rect, 1)
@@ -342,23 +343,23 @@ def draw_players(players, current_idx, final_info=None):
         if p.busted: status = " (BUSTED)"
         if p.stayed: status = " (STAYED)"
         cursor = " <--" if i==current_idx and not p.busted and not p.stayed else ""
-        label = f"{i+1}. {p.name}  Tot:{p.score_total}  Curr:{p.score_current}{status}{cursor}"
-        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-26))
+        label = f"{p.name}  Total Score: {p.score_total}  Current Score: {p.score_current}{status}{cursor}"
         x = 18
+        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-26))
         for c in p.hand:
-            screen.blit(get_card_image(c), (x, y))
+            screen.blit(get_card_image(c), (x, y+24))
             x += CARD_W + CARD_GAP
-        y += CARD_H + 34
+        y += CARD_H + 50
     if final_info:
         # show final round info box top-right
         box = pygame.Rect(760, 90, 400, 120)
         pygame.draw.rect(screen, (230,230,255), box)
         pygame.draw.rect(screen, (0,0,0), box, 2)
         screen.blit(FONT.render("FINAL ROUND INFO", True, (0,0,0)), (box.x + 12, box.y + 8))
-        screen.blit(FONT.render(final_info, True, (0,0,0)), (box.x + 12, box.y + 38))
+        screen.blit(SMALL.render(final_info, True, (0,0,0)), (box.x + 12, box.y + 38))
 
 def draw_deck_info(deck, discard):
-    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 58))
+    screen.blit(FONT.render(f"Deck: {len(deck)} | Discard: {len(discard)}", True, (0,0,0)), (WINDOW_WIDTH-360, 80))
 
 # Button helper
 class Button:
@@ -395,10 +396,23 @@ def bot_should_hit(p: Player):
 
 # ---------- Winner announcement ----------
 def announce_winner(player):
-    screen.fill((200,255,200))
-    screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, (10,10,10)), (80, 320))
+    screen.fill((220,255,220))
+    screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, (0,0,0)), (80, 320))
     pygame.display.update()
-    pygame.time.delay(3500)
+
+    etime = time.perf_counter()
+    while True:
+        if etime >= 3:
+            screen.fill((255,255,255))
+            pygame.display.update()
+            return
+        else:
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    screen.fill((255,255,255))
+                    pygame.display.update()
+                    return
+    #pygame.time.delay(3500)
 
 # ---------- Player setup via pygame_menu (allows add human/bot) ----------
 players_global = []
@@ -419,6 +433,9 @@ def setup_players_gui():
     add_bot_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+BUTTON_H+20),(btn_w,BUTTON_H)), text="Add Bot", manager=GUI_MANAGER)
     # clear all button
     clear_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+(BUTTON_H+20)*2),(btn_w,BUTTON_H)), text="Clear", manager=GUI_MANAGER)
+    # start game/play button
+    start_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+(BUTTON_H+20)*3),(btn_w,BUTTON_H)), text="Start Game", manager=GUI_MANAGER)
+    ui_e = [return_btn,add_human_btn,add_bot_btn,clear_btn,start_btn]
 
     while running:
         for ev in pygame.event.get():
@@ -442,11 +459,24 @@ def setup_players_gui():
                 if ev.ui_element == clear_btn:
                     players_global.clear()
                 # start game
-                # if 920 <= mx <= 920+160 and 290 <= my <= 290+36:
-                #     if players_global:
-                #         running = False
-                # return
+                if ev.ui_element == start_btn:
+                    if players_global:
+                        running = False
+                        for e in ui_e:
+                            e.kill()
+                        GUI_MANAGER.update(clock.tick(FPS))
+                        GUI_MANAGER.draw_ui(screen)
+                        screen.fill((255,255,255))
+                        pygame.display.update()
+                        play_game_gui()
+                        return
                 if ev.ui_element == return_btn:
+                    for e in ui_e:
+                        e.kill()
+                    GUI_MANAGER.update(clock.tick(FPS))
+                    GUI_MANAGER.draw_ui(screen)
+                    screen.fill((255,255,255))
+                    pygame.display.update()
                     running = False
             elif ev.type == KEYDOWN:
                 if ev.key == K_BACKSPACE:
@@ -458,7 +488,7 @@ def setup_players_gui():
                 else:
                     if len(input_text) < 18:
                         input_text += ev.unicode
-        
+
         # draw UI
         screen.fill((225,225,225))
         pygame.draw.rect(screen,(255,255,255),input_rect,border_radius=6)
@@ -467,7 +497,7 @@ def setup_players_gui():
         draw_header("Setup Game")
         draw_subtitle("Type player name and press 'Add Human' or Enter")
         # show current players list
-        yy = 300
+        yy = 280
         for i, p in enumerate(players_global):
             lab = f"{i+1}. {p.name} {'(BOT)' if p.is_bot else '(HUMAN)'}"
             screen.blit(FONT.render(lab, True, (0,0,0)), (40, yy))
@@ -491,10 +521,16 @@ def play_game_gui():
     triggerer_idx = None
     final_players_list = []
 
-    # Buttons for current human player
-    hit_btn = Button((820, 640, BUTTON_W, BUTTON_H), "Hit (H)", lambda: action_press("hit"))
-    stay_btn = Button((960, 640, BUTTON_W, BUTTON_H), "Stay (S)", lambda: action_press("stay"))
+    # BUTTONS
+    btn_w = BUTTON_W * 3/2
+    # return home button
+    return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
+    # current player buttons
+    hit_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((280,640),(btn_w,BUTTON_H)), text="Hit (H)", manager=GUI_MANAGER)
+    stay_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((280+btn_w+20,640),(btn_w,BUTTON_H)), text="Stay (S)", manager=GUI_MANAGER)
+    ui_e = [return_btn,hit_btn,stay_btn]
     tooltip = ""
+    tbox = pygame.Rect(280, 540, btn_w*2+20, 90)
     global last_player_action
     last_player_action = None
     action_queue = []  # used to deliver button actions from UI into game loop
@@ -518,6 +554,22 @@ def play_game_gui():
 
         # round loop
         while True:
+            for ev in pygame.event.get():
+                GUI_MANAGER.process_events(ev)
+                if ev.type == pygame_gui.UI_BUTTON_PRESSED and ev.ui_element == return_btn:
+                    print("return")
+                    for e in ui_e:
+                        e.kill()
+                    GUI_MANAGER.update(clock.tick(FPS))
+                    GUI_MANAGER.draw_ui(screen)
+                    screen.fill((255,255,255))
+                    pygame.display.update()
+                    return
+            screen.fill((255,255,255))
+            # draw UI
+            draw_header("Flip 7 — Play")
+            draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
+
             ensure_deck_has_cards(deck, discard)
             # round end check
             if all(p.busted or p.stayed for p in players):
@@ -529,10 +581,6 @@ def play_game_gui():
                 if nxt is None: break
                 current_idx = nxt
                 continue
-
-            # draw UI
-            draw_header("Flip 7 — Play")
-            draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
             # if final_trigger active, show box
             final_info = None
             if final_trigger:
@@ -541,22 +589,19 @@ def play_game_gui():
             draw_players(players, current_idx, final_info)
             draw_deck_info(deck, discard)
             # draw buttons for human if current is human
-            hit_btn.draw(screen); stay_btn.draw(screen)
-            # draw tooltip if hovering
-            if hit_btn.hover:
-                tooltip = "Draw a card (keyboard H). If duplicate number -> bust unless you have Second Chance."
-            elif stay_btn.hover:
-                tooltip = "Bank your current points and end your turn (keyboard S)."
-            else:
-                tooltip = ""
             if tooltip:
-                tbox = pygame.Rect(820, 600, 360, 30)
-                pygame.draw.rect(screen, (255,255,220), tbox); pygame.draw.rect(screen, (0,0,0), tbox, 1)
-                screen.blit(SMALL.render(tooltip, True, (0,0,0)), (tbox.x+6, tbox.y+6))
+                pygame.draw.rect(screen, (255,255,220), tbox)
+                pygame.draw.rect(screen, (0,0,0), tbox, 1)
+                yy = 0
+                for line in tooltip.split("\n"):
+                    screen.blit(SMALL.render(line, True, (0,0,0)), (tbox.x+6, tbox.y+yy))
+                    yy += 26
+            time_delta = clock.tick(FPS)
+            GUI_MANAGER.update(time_delta)
+            GUI_MANAGER.draw_ui(screen)
             pygame.display.update()
 
             # handle events and bot decisions
-            event_processed = False
             # If current is bot, have it act with simple AI
             if players[current_idx].is_bot:
                 bot = players[current_idx]
@@ -582,23 +627,33 @@ def play_game_gui():
                         if bot.score_total >= 200 and not final_trigger:
                             final_trigger = True; triggerer_idx = current_idx
                             final_players_list = [i for i in range(n) if i != triggerer_idx]
-                    event_processed = True
                 # small break to refresh UI
-                clock.tick(FPS)
             else:
                 # human: event loop waits for button clicks or keyboard
                 ev = pygame.event.wait()
                 if ev.type == QUIT:
                     pygame.quit(); sys.exit()
-                if ev.type == KEYDOWN:
+                GUI_MANAGER.process_events(ev)
+                if ev.type == pygame_gui.UI_BUTTON_PRESSED:
+                    if ev.ui_element == hit_btn:
+                        action_press("hit")
+                    elif ev.ui_element == stay_btn:
+                        action_press("stay")
+                elif ev.type == pygame_gui.UI_BUTTON_ON_HOVERED:
+                    # draw tooltip if hovering
+                    if ev.ui_element == hit_btn:
+                        tooltip = "Draw a card. If duplicate number\nthen bust unless you have\nSecond Chance."
+                    elif ev.ui_element == stay_btn:
+                        tooltip = "Bank your current points and end\nyour turn."
+                elif ev.type == pygame_gui.UI_BUTTON_ON_UNHOVERED:
+                    tooltip = ""
+                elif ev.type == KEYDOWN:
                     if ev.key == K_q:
                         return
                     if ev.key == K_h:
-                        action_queue.append("hit")
+                        action_press("hit")
                     if ev.key == K_s:
-                        action_queue.append("stay")
-                # pass event to buttons
-                hit_btn.handle_event(ev); stay_btn.handle_event(ev)
+                        action_press("stay")
                 # process queued actions if any
                 if action_queue:
                     act = action_queue.pop(0)
@@ -630,15 +685,32 @@ def play_game_gui():
             else:
                 # if the player acted and still active (hit and didn't bust) we let them choose again; for bots we re-evaluate quickly
                 if players[current_idx].is_bot:
+                    if hit_btn.visible:
+                        hit_btn.hide()
+                        stay_btn.hide()
+                        time_delta = clock.tick(FPS)
+                        GUI_MANAGER.update(time_delta)
+                        GUI_MANAGER.draw_ui(screen)
+                        pygame.display.update()
                     # bot acts until it chooses to stay or bust (handled above)
                     nxt = next_active_index(players, current_idx)
                     if nxt is not None:
                         current_idx = nxt
                 else:
                     # human remains current until they click stay or hit (we don't auto-advance)
+                    if not hit_btn.visible:
+                        hit_btn.show()
+                        stay_btn.show()
+                        time_delta = clock.tick(FPS)
+                        GUI_MANAGER.update(time_delta)
+                        GUI_MANAGER.draw_ui(screen)
+                        pygame.display.update()
                     pass
 
-            clock.tick(FPS)
+            time_delta = clock.tick(FPS)
+            GUI_MANAGER.update(time_delta)
+            GUI_MANAGER.draw_ui(screen)
+            pygame.display.update()
 
         # Round ended: if final_trigger not active, rotate dealer and continue; if final triggered manage final players list
         if not final_trigger:
@@ -661,14 +733,20 @@ def play_game_gui():
                     drawn = deck.pop()
                     resolve_draw(idx, drawn, players, deck, discard, idx)
                 # let this player act until stay/bust
-                while not (players[idx].busted or players[idx].stayed):
+                while not (players[idx].busted or players[idx].stayed): #FIXME can't tell what's going on when this is triggered
+                    screen.fill((255,255,255))
                     draw_header("Final Round — Extra Turn")
                     draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
                     draw_players(players, idx, f"Triggerer: {players[triggerer_idx].name}")
                     draw_deck_info(deck, discard)
-                    hit_btn.draw(screen); stay_btn.draw(screen)
-                    pygame.display.update()
                     if players[idx].is_bot:
+                        if hit_btn.visible:
+                            hit_btn.hide()
+                            stay_btn.hide()
+                            time_delta = clock.tick(FPS)
+                            GUI_MANAGER.update(time_delta)
+                            GUI_MANAGER.draw_ui(screen)
+                            pygame.display.update()
                         pygame.time.delay(450)
                         if bot_should_hit(players[idx]):
                             ensure_deck_has_cards(deck, discard)
@@ -679,6 +757,13 @@ def play_game_gui():
                             players[idx].score_total += players[idx].score_current
                             discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
                     else:
+                        if not hit_btn.visible:
+                            hit_btn.show()
+                            stay_btn.show()
+                            time_delta = clock.tick(FPS)
+                            GUI_MANAGER.update(time_delta)
+                            GUI_MANAGER.draw_ui(screen)
+                            pygame.display.update()
                         ev = pygame.event.wait()
                         if ev.type == QUIT:
                             pygame.quit(); sys.exit()
@@ -691,16 +776,16 @@ def play_game_gui():
                                 players[idx].compute_current_score()
                                 players[idx].score_total += players[idx].score_current
                                 discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
-                        if ev.type == MOUSEMOTION:
-                            hit_btn.handle_event(ev); stay_btn.handle_event(ev)
-                        if ev.type == MOUSEBUTTONDOWN and ev.button == 1:
-                            hit_btn.handle_event(ev); stay_btn.handle_event(ev)
-                    clock.tick(FPS)
+                    time_delta = clock.tick(FPS)
+                    GUI_MANAGER.update(time_delta)
+                    GUI_MANAGER.draw_ui(screen)
+                    pygame.display.update()
             # after all final players had turns (or were skipped), determine winner
             top = max(p.score_total for p in players)
             winners = [p for p in players if p.score_total == top]
             if len(winners) == 1:
-                announce_winner(winners[0]); return
+                announce_winner(winners[0])
+                return
             else:
                 # tie: continue playing new rounds until resolved (reset final trigger)
                 final_trigger = False
@@ -722,6 +807,9 @@ def show_rules():
                 pygame.quit(); sys.exit()
             if ev.type == pygame_gui.UI_BUTTON_PRESSED:
                 if ev.ui_element == return_btn:
+                    return_btn.kill()
+                    GUI_MANAGER.update(clock.tick(FPS))
+                    GUI_MANAGER.draw_ui(screen)
                     showing = False
             GUI_MANAGER.process_events(ev)
         screen.fill((255,255,255))
@@ -763,8 +851,6 @@ def start_menu():
     menu.add.button("Play", lambda: play_game_gui())
     menu.add.button("Quit", pygame_menu.events.EXIT)
     menu.mainloop(screen)
-
-print(screen.get_width())
 
 if __name__ == "__main__":
     start_menu()
