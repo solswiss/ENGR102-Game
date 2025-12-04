@@ -38,7 +38,7 @@ POST_ACTION_PAUSE_MS = int(350 * ANIM_MULTIPLIER)
 
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption("Flip 7 — Merged Fixed")
+pygame.display.set_caption("Flip 7")
 clock = pygame.time.Clock()
 
 # Use Comic Sans font per request (fallback if missing)
@@ -235,9 +235,7 @@ def draw_header(title):
     hdr_rect = pygame.Rect(12, 8, 760, 80)
     pygame.draw.rect(screen, (245,245,245), hdr_rect)  # same color but keeps consistent layout
     screen.blit(BIG.render(title, True, (10,10,10)), (18, 10))
-    sub_rect = pygame.Rect(18,50,740,28)
-    pygame.draw.rect(screen, (255,255,230), sub_rect)
-    screen.blit(SMALL.render("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu", True, (10,10,10)), (20,54))
+    
 
 def draw_players(players, current_idx, final_info=None):
     y = ROWS_TOP
@@ -824,7 +822,6 @@ def play_game_gui():
                 tooltip = ""
             if tooltip:
                 tbox = pygame.Rect(280, 600, 460, 30)
-                pygame.draw.rect(screen, (255,255,220), tbox); pygame.draw.rect(screen, (0,0,0), tbox, 1)
                 screen.blit(SMALL.render(tooltip, True, (0,0,0)), (tbox.x+6, tbox.y+4))
 
             # set globals for animations
