@@ -90,6 +90,34 @@ def get_card_image(v):
         IMAGE_CACHE[v] = load_card_image(v)
     return IMAGE_CACHE[v]
 
+# --- back image loader (used for draws / deck) ---
+def load_back_image():
+    paths = [
+        os.path.join(ASSET_FOLDER, "back.png"),
+        os.path.join(ASSET_FOLDER, "back.PNG"),
+        os.path.join(ASSET_FOLDER, "cardback.png"),
+    ]
+    for p in paths:
+        try:
+            img = pygame.image.load(p).convert_alpha()
+            img = pygame.transform.smoothscale(img, (CARD_W, CARD_H))
+            return img
+        except Exception:
+            continue
+    # fallback back surface
+    surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
+    surf.fill((50, 80, 120))
+    pygame.draw.rect(surf, (0,0,0), surf.get_rect(), 2)
+    txt = FONT.render("BACK", True, (240,240,240))
+    tw, th = txt.get_size()
+    surf.blit(txt, ((CARD_W - tw)//2, (CARD_H - th)//2))
+    return surf
+
+def get_back_image():
+    if 'BACK' not in IMAGE_CACHE:
+        IMAGE_CACHE['BACK'] = load_back_image()
+    return IMAGE_CACHE['BACK']
+
 # ---------- Deck builder ----------
 def make_deck():
     """Create a deck according to rules:
@@ -121,7 +149,8 @@ class Player:
         self.is_bot = is_bot
         self.bot_aggr = bot_aggr
         self.hand = []            # list of integer card codes (0..21)
-        self.has_second = False  # true if they hold a second chance
+        self.hand_face = []       # parallel list of booleans; True if face-up
+        self.has_second = False   # true if they hold a second chance
         self.stayed = False
         self.busted = False
         self.score_current = 0
@@ -129,6 +158,7 @@ class Player:
 
     def reset_for_round(self):
         self.hand = []
+        self.hand_face = []
         self.has_second = False
         self.stayed = False
         self.busted = False
@@ -143,6 +173,28 @@ class Player:
         mod_sum = sum(MODIFIER_MAP[c] for c in self.hand if c in MODIFIER_MAP)
         self.score_current = num_sum * mul + mod_sum
         return self.score_current
+
+    # helpers to manage hand and face flags
+    def add_card(self, card_val, face_up=True):
+        """Append a card to player's hand and set its face flag."""
+        self.hand.append(card_val)
+        self.hand_face.append(bool(face_up))
+
+    def pop_last(self):
+        """Remove and return last card (and its face flag)."""
+        if not self.hand:
+            return None
+        self.hand_face.pop()
+        return self.hand.pop()
+
+    def remove_card_value(self, value):
+        """Remove first occurrence of value from hand (and corresponding flag)."""
+        for i, v in enumerate(self.hand):
+            if v == value:
+                self.hand.pop(i)
+                self.hand_face.pop(i)
+                return True
+        return False
 
 # ---------- Helpers ----------
 def unique_number_count(hand):
@@ -166,6 +218,10 @@ def ensure_deck_has_cards(deck, discard):
         discard.clear()
         random.shuffle(deck)
 
+def active_player_indices(players):
+    """Return indices of players who are not busted and not stayed."""
+    return [i for i,p in enumerate(players) if not p.busted and not p.stayed]
+
 # ---------- UI utilities / layout helpers ----------
 def player_hand_pos(player_index, card_index):
     """Return (x,y) screen position for a given player's card slot."""
@@ -180,6 +236,7 @@ def draw_header(title):
 
 def draw_players(players, current_idx, final_info=None):
     y = ROWS_TOP
+    back_img = get_back_image()
     for i, p in enumerate(players):
         status = ""
         if p.busted: status = " (BUSTED)"
@@ -188,8 +245,15 @@ def draw_players(players, current_idx, final_info=None):
         label = f"{i+1}. {p.name}  Tot:{p.score_total}  Curr:{p.score_current}{status}{cursor}"
         screen.blit(FONT.render(label, True, (0,0,0)), (18, y-26))
         x = 18
-        for c in p.hand:
-            screen.blit(get_card_image(c), (x, y))
+        # show actual card if face flag True, otherwise show back image (concealed)
+        for idx_card, c in enumerate(p.hand):
+            face_up = False
+            if idx_card < len(p.hand_face):
+                face_up = p.hand_face[idx_card]
+            if face_up:
+                screen.blit(get_card_image(c), (x, y))
+            else:
+                screen.blit(back_img, (x, y))
             x += CARD_W + CARD_GAP
         y += CARD_H + 34
     if final_info:
@@ -206,14 +270,17 @@ def draw_deck_info(deck, discard):
     pygame.draw.rect(screen, (200,200,200), top_rect)
     pygame.draw.rect(screen, (0,0,0), top_rect, 2)
     if deck:
-        screen.blit(get_card_image(deck[-1]), top_rect.topleft)
+        # show back of deck (do not reveal top card)
+        screen.blit(get_back_image(), top_rect.topleft)
 
 # ---------- animation: animate moving a card from deck to player's hand ----------
 def animate_card_move(card_val, target_idx, target_slot_index, duration_ms):
-    """Animate a card image moving from DECK_POS to player target position over duration_ms."""
+    """Animate a card image moving from DECK_POS to player target position over duration_ms.
+    Uses the back image during the animation so faces are not revealed.
+    """
     start_x, start_y = DECK_POS
     end_x, end_y = player_hand_pos(target_idx, target_slot_index)
-    img = get_card_image(card_val)
+    img = get_back_image()  # use back for animation
     frames = max(1, int(round(duration_ms / (1000.0 / FPS))))
     for f in range(frames):
         t = (f+1)/frames
@@ -223,7 +290,7 @@ def animate_card_move(card_val, target_idx, target_slot_index, duration_ms):
         draw_header("Flip 7 — Play")
         draw_players(current_global_players[0], current_global_players[1], current_global_players[2])
         draw_deck_info(current_global_deck[0], current_global_discard[0])
-        # draw the moving card on top
+        # draw the moving card on top (back)
         screen.blit(img, (cur_x, cur_y))
         pygame.display.update()
         clock.tick(FPS)
@@ -304,7 +371,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
         # Case A: player does NOT already have one -> they take it
         if not p.has_second:
             p.has_second = True
-            p.hand.append(21)
+            p.add_card(21, face_up=True)
             p.compute_current_score()
             return "ok"
 
@@ -315,7 +382,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             if eligible:
                 tgt = random.choice(eligible)
                 players[tgt].has_second = True
-                players[tgt].hand.append(21)
+                players[tgt].add_card(21, face_up=True)
                 players[tgt].compute_current_score()
                 return "ok"
             else:
@@ -331,7 +398,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             tgt = choose_target_ui(players, f"{p.name} drew SECOND — choose target to give it to", allowed_indices=eligible)
             if tgt is not None:
                 players[tgt].has_second = True
-                players[tgt].hand.append(21)
+                players[tgt].add_card(21, face_up=True)
                 players[tgt].compute_current_score()
             else:
                 # cancelled -> discard
@@ -340,103 +407,129 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
 
     # FLIP THREE (20)
     if card_val == 20:
-        p.hand.append(20)
-        # the player who receives flip3 must accept next 3 cards, flipping them one at a time
+        # When a player draws FLIP3 they choose a target player (could be themselves or another active player).
+        # If they are the only active player available, they are forced to target themselves.
+        # The target receives the next 3 cards (flip3 effect) and resolves them (including cascades).
+        active = active_player_indices(players)
+        # ensure at least the drawer is active
+        if player_idx not in active:
+            active.append(player_idx)
+            active = sorted(set(active))
+        # If only one active player -> force self-target
+        if len(active) == 1:
+            target_idx = active[0]
+        else:
+            if p.is_bot:
+                # bots prefer targeting others if possible, else self
+                others = [i for i in active if i != player_idx]
+                target_idx = random.choice(others) if others else player_idx
+            else:
+                # human: allow choosing among active players (including self)
+                target_idx = choose_target_ui(players, f"{p.name} drew FLIP3 — choose target to receive 3 flips", allowed_indices=active)
+                if target_idx is None:
+                    # cancelled -> discard the FLIP3 card
+                    discard.append(20)
+                    return "ok"
+
+        # give flip3 card to target (for visual record) then deliver 3 flips to that target
+        players[target_idx].add_card(20, face_up=True)
+        # now deliver 3 cards to the target, resolving duplicates/busts appropriately
         for _ in range(3):
             ensure_deck_has_cards(deck, discard)
             if not deck:
                 break
             drawn = deck.pop()
-            # animate the drawn card moving to this player (for clarity)
-            animate_card_move(drawn, player_idx, len(p.hand)-1, DEAL_ANIM_MS//2)
-            p.hand.append(drawn)
+            # animate using back image (we do not reveal faces during movement)
+            animate_card_move(drawn, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
+            # append to hand and reveal (face_up True)
+            players[target_idx].add_card(drawn, face_up=True)
             if drawn in range(0,13):
-                nums = [c for c in p.hand if c in range(0,13)]
+                nums = [c for c in players[target_idx].hand if c in range(0,13)]
                 if len(nums) != len(set(nums)):
-                    if p.has_second:
+                    if players[target_idx].has_second:
                         # consume second chance: drop the duplicate just drawn
-                        p.hand.pop()  # remove drawn duplicate
-                        p.has_second = False
+                        players[target_idx].pop_last()  # remove drawn duplicate
+                        players[target_idx].has_second = False
                         # remove the visual SECOND (21) from their hand if present
-                        if 21 in p.hand:
-                            try: p.hand.remove(21)
-                            except: pass
-                        p.compute_current_score()
+                        players[target_idx].remove_card_value(21)
+                        players[target_idx].compute_current_score()
                         continue
                     else:
                         # bust: discard all their cards and mark busted
-                        discard.extend(p.hand)
-                        p.hand = []
-                        p.busted = True
-                        p.score_current = 0
+                        discard.extend(players[target_idx].hand)
+                        players[target_idx].hand = []
+                        players[target_idx].hand_face = []
+                        players[target_idx].busted = True
+                        players[target_idx].score_current = 0
                         pygame.time.delay(POST_ACTION_PAUSE_MS)
                         return "bust"
-            # non-number cards (e.g., 19/20/21) remain in hand and resolved after the three flips
-        # After the 3 flips, process any Flip3/Freeze in hand in order (Flip3 can cascade)
-        # We'll process a snapshot list to avoid infinite loop
-        action_cards = [c for c in list(p.hand) if c in (19,20)]
+            # non-number cards remain in hand and will be processed below
+
+        # After the 3 flips, process action cards (Flip3/Freeze) in the target's hand (may cascade)
+        action_cards = [c for c in list(players[target_idx].hand) if c in (19,20)]
         for a in action_cards:
-            if p.busted:
+            if players[target_idx].busted:
                 break
             # remove from hand for resolution
             try:
-                p.hand.remove(a)
+                players[target_idx].remove_card_value(a)
             except:
                 continue
             if a == 19:
-                # freeze: pick target to force to Stay
-                if p.is_bot:
-                    targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed and i!=player_idx]
-                    if targets:
-                        tgt = random.choice(targets)
-                        targ = players[tgt]
-                        targ.compute_current_score()
-                        targ.score_total += targ.score_current
-                        discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+                # freeze: pick a target to force to Stay (same targeting logic as earlier)
+                tgt_candidates = active_player_indices(players)
+                if target_idx not in tgt_candidates:
+                    tgt_candidates.append(target_idx)
+                if len(tgt_candidates) == 1:
+                    tgt = tgt_candidates[0]
                 else:
-                    # allow selecting any active target (including self if they are active and rule allows)
-                    targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed]
-                    if targets:
-                        tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay", allowed_indices=targets)
-                        if tgt is not None:
-                            targ = players[tgt]
-                            targ.compute_current_score()
-                            targ.score_total += targ.score_current
-                            discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+                    if players[target_idx].is_bot:
+                        # bot prefers others if available
+                        others2 = [i for i in tgt_candidates if i != target_idx]
+                        tgt = random.choice(others2) if others2 else target_idx
+                    else:
+                        tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE — choose a target to force to Stay", allowed_indices=tgt_candidates)
+                        if tgt is None:
+                            # cancelled -> do nothing (discard freeze)
+                            continue
+                targ = players[tgt]
+                targ.compute_current_score()
+                targ.score_total += targ.score_current
+                discard.extend(targ.hand); targ.hand = []; targ.hand_face = []; targ.stayed = True
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
             elif a == 20:
-                # cascade another 3 draws
+                # cascade another 3 draws onto the same target
                 for _ in range(3):
                     ensure_deck_has_cards(deck, discard)
                     if not deck: break
                     drawn2 = deck.pop()
-                    animate_card_move(drawn2, player_idx, len(p.hand)-1, DEAL_ANIM_MS//2)
-                    p.hand.append(drawn2)
+                    animate_card_move(drawn2, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
+                    players[target_idx].add_card(drawn2, face_up=True)
                     if drawn2 in range(0,13):
-                        nums = [c for c in p.hand if c in range(0,13)]
+                        nums = [c for c in players[target_idx].hand if c in range(0,13)]
                         if len(nums) != len(set(nums)):
-                            if p.has_second:
-                                p.hand.pop()
-                                p.has_second = False
-                                if 21 in p.hand:
-                                    try: p.hand.remove(21)
-                                    except: pass
+                            if players[target_idx].has_second:
+                                players[target_idx].pop_last()
+                                players[target_idx].has_second = False
+                                players[target_idx].remove_card_value(21)
                             else:
-                                discard.extend(p.hand); p.hand = []; p.busted = True; p.score_current = 0
+                                discard.extend(players[target_idx].hand); players[target_idx].hand = []; players[target_idx].hand_face = []; players[target_idx].busted = True; players[target_idx].score_current = 0
                                 pygame.time.delay(POST_ACTION_PAUSE_MS)
                                 return "bust"
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
-        # compute and check flip7
-        p.compute_current_score()
-        if unique_number_count(p.hand) >= 7:
-            p.score_total += 15 + p.score_current
-            discard.extend(p.hand); p.hand = []; p.stayed = True
+
+        # compute and check flip7 for the target
+        players[target_idx].compute_current_score()
+        if unique_number_count(players[target_idx].hand) >= 7:
+            players[target_idx].score_total += 15 + players[target_idx].score_current
+            discard.extend(players[target_idx].hand); players[target_idx].hand = []; players[target_idx].hand_face = []; players[target_idx].stayed = True
             pygame.time.delay(POST_ACTION_PAUSE_MS)
             return "flip7"
         return "ok"
 
     # NORMAL: numbers, modifiers, X2, freeze as stand-alone card
-    p.hand.append(card_val)
+    # Add the card face-up (we called animate before resolve so hand should show face after)
+    p.add_card(card_val, face_up=True)
 
     # If numeric, check duplicates immediately
     if card_val in range(0,13):
@@ -444,42 +537,47 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
         if len(nums) != len(set(nums)):
             if p.has_second:
                 # consume second chance: drop duplicate drawn
-                p.hand.pop()
+                p.pop_last()
                 p.has_second = False
-                if 21 in p.hand:
-                    try: p.hand.remove(21)
-                    except: pass
+                p.remove_card_value(21)
                 p.compute_current_score()
                 return "second_consumed"
             else:
-                discard.extend(p.hand); p.hand = []; p.busted = True; p.score_current = 0
+                discard.extend(p.hand); p.hand = []; p.hand_face = []; p.busted = True; p.score_current = 0
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
                 return "bust"
 
     # If freeze drawn outside flip3
     if card_val == 19:
-        if p.is_bot:
-            targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed and i!=player_idx]
-            if targets:
-                tgt = random.choice(targets)
-                targ = players[tgt]
-                targ.compute_current_score(); targ.score_total += targ.score_current
-                discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+        # freeze should follow the same targeting rules as FLIP3
+        tgt_candidates = active_player_indices(players)
+        if player_idx not in tgt_candidates:
+            tgt_candidates.append(player_idx)
+        # if only one candidate, force them
+        if len(tgt_candidates) == 1:
+            tgt = tgt_candidates[0]
         else:
-            targets = [i for i,pp in enumerate(players) if not pp.busted and not pp.stayed]
-            if targets:
-                tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay", allowed_indices=targets)
-                if tgt is not None:
-                    targ = players[tgt]
-                    targ.compute_current_score(); targ.score_total += targ.score_current
-                    discard.extend(targ.hand); targ.hand = []; targ.stayed = True
+            if p.is_bot:
+                others = [i for i in tgt_candidates if i != player_idx]
+                tgt = random.choice(others) if others else player_idx
+            else:
+                tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay", allowed_indices=tgt_candidates)
+                if tgt is None:
+                    # player canceled -> discard freeze
+                    discard.append(19)
+                    # also remove freeze card from player's hand if we had appended it
+                    p.remove_card_value(19)
+                    return "ok"
+        targ = players[tgt]
+        targ.compute_current_score(); targ.score_total += targ.score_current
+        discard.extend(targ.hand); targ.hand = []; targ.hand_face = []; targ.stayed = True
         pygame.time.delay(POST_ACTION_PAUSE_MS)
 
     # compute score and check Flip7
     p.compute_current_score()
     if unique_number_count(p.hand) >= 7:
         p.score_total += 15 + p.score_current
-        discard.extend(p.hand); p.hand = []; p.stayed = True
+        discard.extend(p.hand); p.hand = []; p.hand_face = []; p.stayed = True
         pygame.time.delay(POST_ACTION_PAUSE_MS)
         return "flip7"
     return "ok"
@@ -631,7 +729,7 @@ def play_game_gui():
             # target slot is current length of their hand (before resolve will append)
             target_slot = len(players[idx].hand)
             animate_card_move(drawn, idx, target_slot, DEAL_ANIM_MS)
-            # resolve after animation (resolve_draw will append into hand)
+            # resolve after animation (resolve_draw will append into hand with face_up True)
             resolve_draw(idx, drawn, players, deck, discard, idx)
             pygame.time.delay(60)  # brief inter-card spacing
 
@@ -707,7 +805,7 @@ def play_game_gui():
                         # bot stays
                         bot.compute_current_score()
                         bot.score_total += bot.score_current
-                        discard.extend(bot.hand); bot.hand = []; bot.stayed = True
+                        discard.extend(bot.hand); bot.hand = []; bot.hand_face = []; bot.stayed = True
                         # if bot reached trigger score, set final trigger and request end-of-round
                         if bot.score_total >= 200 and not final_trigger:
                             final_trigger = True; triggerer_idx = current_idx
@@ -741,7 +839,7 @@ def play_game_gui():
                     ensure_deck_has_cards(deck, discard)
                     if deck:
                         drawn = deck.pop()
-                        # animate draw
+                        # animate draw (back shows while moving)
                         target_slot = len(players[current_idx].hand)
                         animate_card_move(drawn, current_idx, target_slot, HIT_ANIM_MS)
                         res = resolve_draw(current_idx, drawn, players, deck, discard, current_idx)
@@ -767,7 +865,7 @@ def play_game_gui():
                     pcur = players[current_idx]
                     pcur.compute_current_score()
                     pcur.score_total += pcur.score_current
-                    discard.extend(pcur.hand); pcur.hand = []; pcur.stayed = True
+                    discard.extend(pcur.hand); pcur.hand = []; pcur.hand_face = []; pcur.stayed = True
                     # if player reached or passed 200 score, trigger final round and request immediate round end
                     if pcur.score_total >= 200 and not final_trigger:
                         final_trigger = True; triggerer_idx = current_idx
@@ -823,7 +921,7 @@ def play_game_gui():
                         else:
                             players[idx].compute_current_score()
                             players[idx].score_total += players[idx].score_current
-                            discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
+                            discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
                     else:
                         ev = pygame.event.wait()
                         if ev.type == QUIT:
@@ -838,7 +936,7 @@ def play_game_gui():
                             if ev.key == K_s:
                                 players[idx].compute_current_score()
                                 players[idx].score_total += players[idx].score_current
-                                discard.extend(players[idx].hand); players[idx].hand = []; players[idx].stayed = True
+                                discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
                         if ev.type == MOUSEMOTION:
                             hit_btn.handle_event(ev); stay_btn.handle_event(ev)
                         if ev.type == MOUSEBUTTONDOWN and ev.button == 1:
