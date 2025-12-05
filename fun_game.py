@@ -1,5 +1,15 @@
-# merged_flip7_fixed.py
-# Merged + bug-fixed Flip 7 (uses gameplay of first file, GUI of second, Comic Sans font)
+# By submitting this assignment, I agree to the following:
+#   "Aggies do not lie, cheat, or steal, or tolerate those who do."
+#   "I have not given or received any unauthorized aid on this assignment."
+#
+# Names:        Kennady Bunn
+#               Milo Sun
+#               Ruth Ellen Bowling
+#               Andrew Justin
+# Section:      511
+# Assignment:   Lab 13 (TEAM)
+# Date:         4 December 2025
+
 import os
 import pygame, sys, random, pygame_menu
 import pygame_gui
