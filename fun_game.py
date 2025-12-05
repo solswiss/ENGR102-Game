@@ -485,8 +485,6 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                     discard.append(20)
                     return "ok"
 
-        # Give FLIP3 marker for visual record (face-up)
-        players[target_idx].add_card(20, face_up=True)
 
         # AUTOMATIC delivery for both bots and humans: perform 3 slow flips onto target
         show_message(f"{p.name} used FLIP3 -> {players[target_idx].name}", ms=MESSAGE_MS//2)
