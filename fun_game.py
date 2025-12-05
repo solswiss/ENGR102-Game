@@ -388,7 +388,7 @@ def choose_target_ui(players, prompt_text, allowed_indices=None):
                 base_y = overlay.y + 60
                 for row_i, i in enumerate(visible_list):
                     p = players[i]
-                    rect = pygame.Rect(overlay.x + 40, base_y + row_i*44, overlay.width - 80, 38)
+                    rect = pygame.Rect(overlay.x + 40, base_y + row_i*44 + 40, overlay.width - 80, 38)
                     if rect.collidepoint(mx,my):
                         if p.busted or p.stayed:
                             break
