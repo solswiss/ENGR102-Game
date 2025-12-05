@@ -265,10 +265,11 @@ def draw_players(players, current_idx, final_info=None):
         status = ""
         if p.busted: status = " (BUSTED)"
         if p.stayed: status = " (STAYED)"
+        padding = 5
         cursor = " <--" if i==current_idx and not p.busted and not p.stayed else ""
         label = f"{i+1}. {p.name}  Tot: {p.score_total}  Curr: {p.score_current}{status}{cursor}"
         # draw label on a small background rect to avoid bleed
-        lbl_rect = pygame.Rect(12, y-60, 700, 35)
+        lbl_rect = pygame.Rect(12, y-60, 700, 35 + 2 * padding)
         pygame.draw.rect(screen, (255,255,255), lbl_rect)
         screen.blit(FONT.render(label, True, (0,0,0)), (18, y-56))
         x = 18
