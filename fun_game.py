@@ -17,6 +17,11 @@ from pygame.locals import *
 from math import floor
 import time
 
+# ---------- COLORS -----------
+BG_BLUE = (200,230,255)
+BG_GREEN = (200,255,220)
+BG_WHITE = (245,245,250)
+BG_GREY = (200,200,200)
 # ---------- CONFIG ----------
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 820
@@ -807,6 +812,13 @@ def play_game_gui():
 
     running = True
     while running:
+        for ev in pygame.event.get():
+            if ev.type == QUIT:
+                pygame.quit(); sys.exit()
+            return_btn_ui.handle_event(ev)
+            if ev.type == MOUSEBUTTONDOWN:
+                if return_btn_ui.rect.collidepoint(ev.pos):
+                    return  # go back to main menu
         # new round reset per player
         for p in players:
             p.reset_for_round()
@@ -883,13 +895,16 @@ def play_game_gui():
 
             # BOT behavior: bots auto-act
             if players[current_idx].is_bot:
+                for ev in pygame.event.get():
+                    if ev.type == QUIT:
+                        pygame.quit(); sys.exit()
+                    return_btn_ui.handle_event(ev)
+                    if ev.type == MOUSEBUTTONDOWN:
+                        if return_btn_ui.rect.collidepoint(ev.pos):
+                            return  # go back to main menu
+                
                 bot = players[current_idx]
                 pygame.time.delay(BOT_ACTION_DELAY_MS)
-
-                # Return pressed anytime → exit to menu
-                ev = pygame.event.wait()
-                if ev.type == MOUSEBUTTONDOWN and return_btn_ui.rect.collidepoint(ev.pos):
-                    return
             
                 if bot.busted or bot.stayed:
                     pass
@@ -915,7 +930,7 @@ def play_game_gui():
                 current_idx = nxt
                 clock.tick(FPS)
                 continue
-
+            
             # HUMAN player: wait for keyboard or click
             ev = pygame.event.wait()
             if ev.type == QUIT:
@@ -1014,20 +1029,26 @@ def play_game_gui():
                             players[idx].score_total += players[idx].score_current
                             discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
                     else:
-                        ev = pygame.event.wait()
-                        if ev.type == QUIT:
-                            pygame.quit(); sys.exit()
-                        if ev.type == KEYDOWN:
+                        for ev in pygame.event.get():
+                            print(ev.type,KEYDOWN,MOUSEBUTTONDOWN)
                             # HUMAN player: wait for keyboard or click
-                            if ev.key == K_q:
-                                return
-                            if ev.key == K_h:
-                                action_queue.append("hit")
-                            if ev.key == K_s:
-                                action_queue.append("stay")
+                            if ev.type == QUIT:
+                                pygame.quit(); sys.exit()
+                            if ev.type == KEYDOWN:
+                                print("is keydown",ev.key,K_h)
+                                if ev.key == K_q:
+                                    return
+                                if ev.key == K_h:
+                                    action_queue.append("hit")
+                                if ev.key == K_s:
+                                    action_queue.append("stay")
                             # button hover/click
                             hit_btn.handle_event(ev)
                             stay_btn.handle_event(ev)
+                            return_btn_ui.handle_event(ev)
+                            if ev.type == MOUSEBUTTONDOWN:
+                                if return_btn_ui.rect.collidepoint(ev.pos):
+                                    return  # go back to main menu
                             # if ev.key == K_h:
                             #     ensure_deck_has_cards(deck, discard)
                             #     if deck:
