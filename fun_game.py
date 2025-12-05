@@ -1030,12 +1030,10 @@ def play_game_gui():
                             discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
                     else:
                         for ev in pygame.event.get():
-                            print(ev.type,KEYDOWN,MOUSEBUTTONDOWN)
                             # HUMAN player: wait for keyboard or click
                             if ev.type == QUIT:
                                 pygame.quit(); sys.exit()
                             if ev.type == KEYDOWN:
-                                print("is keydown",ev.key,K_h)
                                 if ev.key == K_h:
                                     ensure_deck_has_cards(deck, discard)
                                     if deck:
@@ -1073,7 +1071,7 @@ def play_game_gui():
 
 # ---------- Rules screen ----------
 def show_rules():
-    " Show the rules GUI"
+    """Show the rules GUI"""
     showing = True
     return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
     while showing:
