@@ -269,11 +269,11 @@ def draw_players(players, current_idx, final_info=None):
         label = f"{i+1}. {p.name}  Tot: {p.score_total}  Curr: {p.score_current}{status}{cursor}"
         # draw label on a small background rect to avoid bleed
         lbl_rect = pygame.Rect(12, y-60, 700, 35)
-        pygame.draw.rect(screen, (255,255,255), lbl_rect)
-        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-56))
+        pygame.draw.rect(screen, (245,245,245), lbl_rect)
+        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-60))
         x = 18
         # draw cards slightly lower to avoid overlapping the name
-        card_y = y + 6
+        card_y = y-10
         for idx_card, c in enumerate(p.hand):
             face_up = False
             if idx_card < len(p.hand_face):
@@ -283,7 +283,7 @@ def draw_players(players, current_idx, final_info=None):
             else:
                 screen.blit(back_img, (x, card_y))
             x += CARD_W + CARD_GAP
-        y += CARD_H + 50
+        y += CARD_H + 60
 
     # draw deck (so deck is under final-info box)
 
@@ -291,10 +291,10 @@ def draw_deck_info(deck, discard):
     """ Takes in a deck and discard deck and displays the current decks' info """
     # small background area for deck info so text doesn't bleed
     rect = pygame.Rect(WINDOW_WIDTH-380, 250, 360, 54)
-    pygame.draw.rect(screen, (255,255,255), rect)
+    pygame.draw.rect(screen, (245,245,245), rect)
     screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 250))
     top_rect = pygame.Rect(DECK_POS[0], DECK_POS[1], CARD_W, CARD_H)
-    pygame.draw.rect(screen, (200,200,200), top_rect)
+    pygame.draw.rect(screen, (225,225,225), top_rect)
     pygame.draw.rect(screen, (0,0,0), top_rect, 2)
     if deck:
         # move the back image down slightly (DECK_POS already moved)
@@ -495,7 +495,6 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             drawn = deck.pop()
             animate_card_move(drawn, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
             players[target_idx].add_card(drawn, face_up=True)
-            print("gains card",drawn,"len:",len(players[target_idx].hand))
             pygame.time.delay(FLIP3_INTERVAL_MS)
             # only number cards can bust
             if drawn in range(0,13):
@@ -620,7 +619,6 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             tgt = tgt_candidates[0]
         else:
             if p.is_bot:
-                print(p,"is bot")
                 others = [i for i in tgt_candidates if i != player_idx]
                 tgt = random.choice(others) if others else player_idx
             else:
@@ -1016,9 +1014,9 @@ def play_game_gui():
                                 action_queue.append("hit")
                             if ev.key == K_s:
                                 action_queue.append("stay")
-                        # button hover/click
-                        hit_btn.handle_event(ev)
-                        stay_btn.handle_event(ev)
+                            # button hover/click
+                            hit_btn.handle_event(ev)
+                            stay_btn.handle_event(ev)
                             # if ev.key == K_h:
                             #     ensure_deck_has_cards(deck, discard)
                             #     if deck:
