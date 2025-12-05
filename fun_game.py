@@ -1036,12 +1036,18 @@ def play_game_gui():
                                 pygame.quit(); sys.exit()
                             if ev.type == KEYDOWN:
                                 print("is keydown",ev.key,K_h)
-                                if ev.key == K_q:
-                                    return
                                 if ev.key == K_h:
-                                    action_queue.append("hit")
+                                    ensure_deck_has_cards(deck, discard)
+                                    if deck:
+                                        d = deck.pop()
+                                        animate_card_move(d, idx, len(players[idx].hand), HIT_ANIM_MS)
+                                        resolve_draw(idx, d, players, deck, discard, idx)
                                 if ev.key == K_s:
-                                    action_queue.append("stay")
+                                    players[idx].compute_current_score()
+                                    players[idx].score_total += players[idx].score_current
+                                    discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
+                                elif ev.key == K_q:
+                                    return
                             # button hover/click
                             hit_btn.handle_event(ev)
                             stay_btn.handle_event(ev)
@@ -1049,16 +1055,7 @@ def play_game_gui():
                             if ev.type == MOUSEBUTTONDOWN:
                                 if return_btn_ui.rect.collidepoint(ev.pos):
                                     return  # go back to main menu
-                            # if ev.key == K_h:
-                            #     ensure_deck_has_cards(deck, discard)
-                            #     if deck:
-                            #         d = deck.pop()
-                            #         animate_card_move(d, idx, len(players[idx].hand), HIT_ANIM_MS)
-                            #         resolve_draw(idx, d, players, deck, discard, idx)
-                            # if ev.key == K_s:
-                            #     players[idx].compute_current_score()
-                            #     players[idx].score_total += players[idx].score_current
-                            #     discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
+                            
                     clock.tick(FPS)
 
             # determine winner (or continue on tie)
