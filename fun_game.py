@@ -244,7 +244,7 @@ def active_player_indices(players):
 def player_hand_pos(player_index, card_index):
     """ Takes in a player's index and card index's, return the card position as a tuple of (x,y)"""
     x = 18 + card_index * (CARD_W + CARD_GAP)
-    y = ROWS_TOP + player_index * (CARD_H + 34)
+    y = ROWS_TOP + player_index * (CARD_H + 25)
     return x, y
 
 def draw_header(title):
@@ -265,30 +265,30 @@ def draw_players(players, current_idx, final_info=None):
         if p.busted: status = " (BUSTED)"
         if p.stayed: status = " (STAYED)"
         cursor = " <--" if i==current_idx and not p.busted and not p.stayed else ""
-        label = f"{i+1}. {p.name}  Tot:{p.score_total}  Curr:{p.score_current}{status}{cursor}"
+        label = f"{i+1}. {p.name}  Tot: {p.score_total}  Curr: {p.score_current}{status}{cursor}"
         # draw label on a small background rect to avoid bleed
-        lbl_rect = pygame.Rect(12, y-30, 700, 28)
+        lbl_rect = pygame.Rect(12, y-50, 700, 35)
         pygame.draw.rect(screen, (255,255,255), lbl_rect)
-        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-26))
+        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-50))
         x = 18
         for idx_card, c in enumerate(p.hand):
             face_up = False
             if idx_card < len(p.hand_face):
                 face_up = p.hand_face[idx_card]
             if face_up:
-                screen.blit(get_card_image(c), (x, y))
+                screen.blit(get_card_image(c), (x, y-10))
             else:
                 screen.blit(back_img, (x, y))
             x += CARD_W + CARD_GAP
-        y += CARD_H + 34
+        y += CARD_H + 45
 
     # draw deck (so deck is under final-info box)
 def draw_deck_info(deck, discard):
     """ Takes in a deck and discard deck and displays the current decks' info """
     # small background area for deck info so text doesn't bleed
-    rect = pygame.Rect(WINDOW_WIDTH-380, 48, 360, 44)
+    rect = pygame.Rect(WINDOW_WIDTH-380, 250, 360, 54)
     pygame.draw.rect(screen, (255,255,255), rect)
-    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 58))
+    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 250))
     top_rect = pygame.Rect(DECK_POS[0], DECK_POS[1], CARD_W, CARD_H)
     pygame.draw.rect(screen, (200,200,200), top_rect)
     pygame.draw.rect(screen, (0,0,0), top_rect, 2)
@@ -325,7 +325,9 @@ def show_message(text, ms=MESSAGE_MS):
     overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
     overlay.fill((0,0,0,140))
     screen.blit(overlay, (0,0))
-    box_w, box_h = 560, 120
+    padding = 15
+    text_surface = BIG.render(text, True, (255, 255, 255))
+    box_w, box_h = text_surface.get_width() + 2 * padding, text_surface.get_height() + 2 * padding
     box_x = (WINDOW_WIDTH - box_w)//2
     box_y = (WINDOW_HEIGHT - box_h)//2
     pygame.draw.rect(screen, (255,255,240), (box_x, box_y, box_w, box_h))
@@ -408,11 +410,11 @@ def choose_target_ui(players, prompt_text, allowed_indices=None):
             p = players[i]
             status = " (BUSTED)" if p.busted else (" (STAYED)" if p.stayed else "")
             lab = f"{i+1}. {p.name}{status}"
-            rect = pygame.Rect(overlay.x + 40, base_y + row_i*44, overlay.width - 80, 38)
+            rect = pygame.Rect(overlay.x + 40, base_y + row_i*44 + 40, overlay.width - 50, 38)
             color = (180,180,180) if (p.busted or p.stayed) else (220,220,220)
             pygame.draw.rect(screen, color, rect)
             pygame.draw.rect(screen, (0,0,0), rect, 1)
-            screen.blit(FONT.render(lab, True, (0,0,0)), (rect.x + 8, rect.y + 8))
+            screen.blit(FONT.render(lab, True, (0,0,0)), (rect.x + 8, rect.y))
 
         pygame.display.update()
         clock.tick(FPS)
@@ -454,7 +456,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             if not eligible:
                 discard.append(21)
                 return "ok"
-            tgt = choose_target_ui(players, f"{p.name} drew SECOND — choose target to give it to", allowed_indices=eligible)
+            tgt = choose_target_ui(players, f"{p.name} drew SECOND", allowed_indices=eligible)
             if tgt is not None:
                 players[tgt].has_second = True
                 players[tgt].add_card(21, face_up=True)
@@ -476,7 +478,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                 others = [i for i in active if i != player_idx]
                 target_idx = random.choice(others) if others else player_idx
             else:
-                target_idx = choose_target_ui(players, f"{p.name} drew FLIP3 — choose target to receive 3 flips", allowed_indices=active)
+                target_idx = choose_target_ui(players, f"{p.name} drew FLIP3", allowed_indices=active)
                 if target_idx is None:
                     discard.append(20)
                     return "ok"
@@ -521,7 +523,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             flip3_state['initiator'] = player_idx
             flip3_state['target'] = target_idx
             flip3_state['remaining'] = 3
-            show_message(f"{p.name} has FLIP3 — press Hit (H) three times to deliver cards to {players[target_idx].name}", ms=MESSAGE_MS)
+            show_message(f"{p.name} has FLIP3 to {players[target_idx].name}", ms=MESSAGE_MS)
             return "pending_flip3"
 
         # After playing immediate bot flips, resolve action cards in target hand (remove BEFORE processing)
@@ -542,7 +544,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                         others2 = [i for i in targ_candidates if i != target_idx]
                         tgt = random.choice(others2) if others2 else target_idx
                     else:
-                        tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE — choose a target to force to Stay", allowed_indices=targ_candidates)
+                        tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE", allowed_indices=targ_candidates)
                         if tgt is None:
                             continue
                 targ = players[tgt]
@@ -553,7 +555,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
             elif a == 20:
                 # cascade 3 draws onto same target (automatic)
-                show_message(f"{players[target_idx].name} resolved FLIP3 -> additional draws", ms=MESSAGE_MS//2)
+                show_message(f"{players[target_idx].name} resolved FLIP3", ms=MESSAGE_MS//2)
                 for _ in range(3):
                     ensure_deck_has_cards(deck, discard)
                     if not deck: break
@@ -625,7 +627,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                 others = [i for i in tgt_candidates if i != player_idx]
                 tgt = random.choice(others) if others else player_idx
             else:
-                tgt = choose_target_ui(players, f"{p.name} played FREEZE — choose a target to force to Stay", allowed_indices=tgt_candidates)
+                tgt = choose_target_ui(players, f"{p.name} played FREEZE", allowed_indices=tgt_candidates)
                 if tgt is None:
                     # canceled -> discard freeze and remove its visual presence
                     discard.append(19)
@@ -975,7 +977,7 @@ def play_game_gui():
                                             others2 = [i for i in tgt_candidates if i != target_idx]
                                             tgt = random.choice(others2) if others2 else target_idx
                                         else:
-                                            tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE — choose a target to force to Stay", allowed_indices=tgt_candidates)
+                                            tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE", allowed_indices=tgt_candidates)
                                             if tgt is None: continue
                                     targ = players[tgt]
                                     show_message(f"{players[target_idx].name} resolved FREEZE -> {targ.name}", ms=MESSAGE_MS//2)
