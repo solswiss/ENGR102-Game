@@ -18,10 +18,14 @@ from math import floor
 import time
 
 # ---------- COLORS -----------
-BG_BLUE = (200,230,255)
-BG_GREEN = (200,255,220)
+BG_DARK = (20,20,40)
+BG_BLUE = (140,170,240)
+BG_GREEN = (150,255,160)
 BG_WHITE = (245,245,250)
 BG_GREY = (200,200,200)
+TEXT_LIGHT = (240,240,255)
+TEXT_DARK = (0,0,0)
+# BG_CHOICE = BG_DARK
 # ---------- CONFIG ----------
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 820
@@ -112,10 +116,10 @@ def load_card_image(val):
 
     # fallback render
     surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
-    surf.fill((245,245,245))
+    surf.fill(BG_DARK)
     pygame.draw.rect(surf, (20,20,20), surf.get_rect(), 2)
     label = str(val) if val in range(0,13) else LABEL_MAP.get(val, str(val))
-    txt = SMALL.render(label, True, (10,10,10))
+    txt = SMALL.render(label, True, TEXT_LIGHT)
     tw, th = txt.get_size()
     surf.blit(txt, ((CARD_W - tw)//2, (CARD_H - th)//2))
     return surf
@@ -143,8 +147,8 @@ def load_back_image():
             continue
     surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
     surf.fill((60,80,120))
-    pygame.draw.rect(surf, (0,0,0), surf.get_rect(), 2)
-    txt = SMALL.render("BACK", True, (240,240,240))
+    pygame.draw.rect(surf, TEXT_LIGHT, surf.get_rect(), 2)
+    txt = SMALL.render("BACK", True, TEXT_LIGHT)
     tw, th = txt.get_size()
     surf.blit(txt, ((CARD_W - tw)//2, (CARD_H - th)//2))
     return surf
@@ -167,7 +171,7 @@ def make_deck():
     if 18 not in deck:
         deck.append(18)
     for a in (19,20,21):
-        deck.extend([a]*3)
+        deck.extend([a]*30)
     random.shuffle(deck)
     return deck
 
@@ -266,10 +270,10 @@ def player_hand_pos(player_index, card_index):
 def draw_header(title):
     """ Takes in a string and creates a header"""
     # header with boxed background so text doesn't bleed
-    screen.fill((245,245,245))
+    screen.fill(BG_DARK)
     hdr_rect = pygame.Rect(12, 8, 760, 80)
-    pygame.draw.rect(screen, (245,245,245), hdr_rect)  # same color but keeps consistent layout
-    screen.blit(BIG.render(title, True, (10,10,10)), (18, 10))
+    pygame.draw.rect(screen, BG_DARK, hdr_rect)  # same color but keeps consistent layout
+    screen.blit(BIG.render(title, True, TEXT_LIGHT), (18, 10))
     # NOTE: removed the "H = Hit ..." subtext per user's request
 
 def draw_players(players, current_idx, final_info=None):
@@ -285,8 +289,8 @@ def draw_players(players, current_idx, final_info=None):
         label = f"{i+1}. {p.name}  Tot: {p.score_total}  Curr: {p.score_current}{status}{cursor}"
         # draw label on a small background rect to avoid bleed
         lbl_rect = pygame.Rect(12, y-60, 700, 35 + 2 * padding)
-        pygame.draw.rect(screen, (245,245,245), lbl_rect)
-        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-60))
+        pygame.draw.rect(screen, BG_GREEN, lbl_rect)
+        screen.blit(FONT.render(label, True, TEXT_DARK), (18, y-60))
         x = 18
         # draw cards slightly lower to avoid overlapping the name
         card_y = y-10
@@ -307,11 +311,11 @@ def draw_deck_info(deck, discard):
     """ Takes in a deck and discard deck and displays the current decks' info """
     # small background area for deck info so text doesn't bleed
     rect = pygame.Rect(WINDOW_WIDTH-380, 250, 360, 54)
-    pygame.draw.rect(screen, (245,245,245), rect)
-    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, (0,0,0)), (820, 250))
+    pygame.draw.rect(screen, BG_DARK, rect)
+    screen.blit(FONT.render(f"Deck: {len(deck)}   Discard: {len(discard)}", True, TEXT_LIGHT), (820, 250))
     top_rect = pygame.Rect(DECK_POS[0], DECK_POS[1], CARD_W, CARD_H)
     pygame.draw.rect(screen, (225,225,225), top_rect)
-    pygame.draw.rect(screen, (0,0,0), top_rect, 2)
+    pygame.draw.rect(screen, TEXT_LIGHT, top_rect, 2)
     if deck:
         # move the back image down slightly (DECK_POS already moved)
         screen.blit(get_back_image(), top_rect.topleft)
@@ -322,9 +326,9 @@ def draw_final_info_box(final_info):
     if not final_info:
         return
     box = pygame.Rect(760, 90, 400, 120)
-    pygame.draw.rect(screen, (230,230,255), box)
-    pygame.draw.rect(screen, (0,0,0), box, 2)
-    screen.blit(FONT.render("FINAL ROUND INFO", True, (0,0,0)), (box.x + 12, box.y + 8))
+    pygame.draw.rect(screen, BG_GREY, box)
+    pygame.draw.rect(screen, TEXT_LIGHT, box, 2)
+    screen.blit(FONT.render("FINAL ROUND INFO", True, TEXT_DARK), (box.x + 12, box.y + 8))
     # wrap text if needed
     wrapped = []
     line = ""
@@ -337,7 +341,7 @@ def draw_final_info_box(final_info):
     if line: wrapped.append(line)
     y = box.y + 38
     for ln in wrapped:
-        screen.blit(SMALL.render(ln.strip(), True, (0,0,0)), (box.x + 12, y))
+        screen.blit(SMALL.render(ln.strip(), True, TEXT_DARK), (box.x + 12, y))
         y += 22
 
 # ---------- Message overlay (for busts, flip7, etc.) ----------
@@ -347,16 +351,16 @@ def show_message(text, ms=MESSAGE_MS):
     overlay.fill((0,0,0,140))
     screen.blit(overlay, (0,0))
     padding = 15
-    text_surface = BIG.render(text, True, (255, 255, 255))
+    text_surface = BIG.render(text, True, BG_DARK)
     box_w, box_h = text_surface.get_width() + 2 * padding, text_surface.get_height() + 2 * padding
     box_x = (WINDOW_WIDTH - box_w)//2
     box_y = (WINDOW_HEIGHT - box_h)//2
     pygame.draw.rect(screen, (255,255,240), (box_x, box_y, box_w, box_h))
-    pygame.draw.rect(screen, (0,0,0), (box_x, box_y, box_w, box_h), 3)
+    pygame.draw.rect(screen, TEXT_LIGHT, (box_x, box_y, box_w, box_h), 3)
     lines = text.split('\n')
     y = box_y + 18
     for line in lines:
-        txt = BIG.render(line, True, (10,10,10))
+        txt = BIG.render(line, True, TEXT_LIGHT)
         txw, txh = txt.get_size()
         screen.blit(txt, (box_x + (box_w - txw)//2, y))
         y += txh + 6
@@ -417,10 +421,10 @@ def choose_target_ui(players, prompt_text, allowed_indices=None):
                 selected = None
                 selecting = False
 
-        screen.fill((50,50,50))
-        pygame.draw.rect(screen, (240,240,240), overlay)
-        pygame.draw.rect(screen, (10,10,10), overlay, 3)
-        title = BIG.render(prompt_text, True, (10,10,10))
+        screen.fill(BG_GREY)
+        pygame.draw.rect(screen, BG_DARK, overlay)
+        pygame.draw.rect(screen, BG_DARK, overlay, 3)
+        title = BIG.render(prompt_text, True, TEXT_DARK)
         screen.blit(title, (overlay.x + 20, overlay.y + 10))
         base_y = overlay.y + 60
 
@@ -429,10 +433,10 @@ def choose_target_ui(players, prompt_text, allowed_indices=None):
             status = " (BUSTED)" if p.busted else (" (STAYED)" if p.stayed else "")
             lab = f"{i+1}. {p.name}{status}"
             rect = pygame.Rect(overlay.x + 40, base_y + row_i*44 + 40, overlay.width - 50, 38)
-            color = (180,180,180) if (p.busted or p.stayed) else (220,220,220)
+            color = BG_GREY if (p.busted or p.stayed) else BG_DARK
             pygame.draw.rect(screen, color, rect)
-            pygame.draw.rect(screen, (0,0,0), rect, 1)
-            screen.blit(FONT.render(lab, True, (0,0,0)), (rect.x + 8, rect.y))
+            pygame.draw.rect(screen, BG_DARK, rect, 1)
+            screen.blit(FONT.render(lab, True, TEXT_LIGHT), (rect.x + 8, rect.y))
 
         pygame.display.update()
         clock.tick(FPS)
@@ -672,8 +676,8 @@ class Button:
         """ Takes in a surface and displays it"""
         col = (180,220,255) if self.hover else (200,200,200)
         pygame.draw.rect(surf, col, self.rect)
-        pygame.draw.rect(surf, (0,0,0), self.rect, 2)
-        txt = FONT.render(self.label, True, (0,0,0))
+        pygame.draw.rect(surf, TEXT_LIGHT, self.rect, 2)
+        txt = FONT.render(self.label, True, TEXT_LIGHT)
         tw, th = txt.get_size()
         surf.blit(txt, (self.rect.x + (self.rect.w - tw)//2, self.rect.y + (self.rect.h - th)//2))
     def handle_event(self, ev):
@@ -695,8 +699,8 @@ def bot_should_hit(p: Player):
 # ---------- Winner announce ----------
 def announce_winner(player):
     """ Takes in a player and displays text to announce them as the winner"""
-    screen.fill((200,255,200))
-    screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, (10,10,10)), (80, 320))
+    screen.fill(BG_GREEN)
+    screen.blit(BIG.render(f"{player.name} wins with {player.score_total} points!", True, TEXT_LIGHT), (80, 320))
     pygame.display.update()
     pygame.time.delay(3000)
 
@@ -739,7 +743,7 @@ def setup_players_gui():
                             e.kill()
                         GUI_MANAGER.update(clock.tick(FPS))
                         GUI_MANAGER.draw_ui(screen)
-                        screen.fill((255,255,255))
+                        screen.fill(BG_DARK)
                         pygame.display.update()
                         play_game_gui()
                         return
@@ -748,7 +752,7 @@ def setup_players_gui():
                         e.kill()
                     GUI_MANAGER.update(clock.tick(FPS))
                     GUI_MANAGER.draw_ui(screen)
-                    screen.fill((255,255,255))
+                    screen.fill(BG_DARK)
                     pygame.display.update()
                     running = False
             elif ev.type == KEYDOWN:
@@ -762,17 +766,17 @@ def setup_players_gui():
                     if len(input_text) < 18:
                         input_text += ev.unicode
 
-        screen.fill((225,225,225))
+        screen.fill(BG_DARK)
         draw_header("Setup Players")
-        pygame.draw.rect(screen,(255,255,255),input_rect,border_radius=6)
-        pygame.draw.rect(screen,(0,0,0),input_rect,2,border_radius=6)
-        screen.blit(FONT.render(input_text, True, (10,10,10)), (60,210))
-        draw_sub = SMALL.render("Type player name and press 'Add Human' or Enter", True, (10,10,10))
+        pygame.draw.rect(screen,BG_DARK,input_rect,border_radius=6)
+        pygame.draw.rect(screen,TEXT_LIGHT,input_rect,2,border_radius=6)
+        screen.blit(FONT.render(input_text, True, TEXT_LIGHT), (60,210))
+        draw_sub = SMALL.render("Type player name and press 'Add Human' or Enter", True, TEXT_LIGHT)
         screen.blit(draw_sub, (50,170))
         yy = 300
         for i, p in enumerate(players_global):
             lab = f"{i+1}. {p.name} {'(BOT)' if p.is_bot else '(HUMAN)'}"
-            screen.blit(FONT.render(lab, True, (0,0,0)), (50, yy))
+            screen.blit(FONT.render(lab, True, TEXT_LIGHT), (50, yy))
             yy += 32
 
         time_delta = clock.tick(FPS)
@@ -783,7 +787,7 @@ def setup_players_gui():
 # small helper for header rendering reused in rules
 def draw_subtitle(text):
     """ Takes in a text and displays a small subtitle"""
-    sub = SMALL.render(text, True, (0,0,0))
+    sub = SMALL.render(text, True, TEXT_LIGHT)
     screen.blit(sub, (18, 90))
 
 # ---------- Main gameplay (uses combined GUI and fixed behaviors) ----------
@@ -876,12 +880,12 @@ def play_game_gui():
             else:
                 tooltip = ""
             if tooltip:
-                txt_surf = SMALL.render(tooltip, True, (0,0,0))
+                txt_surf = SMALL.render(tooltip, True, TEXT_LIGHT)
                 tw, th = txt_surf.get_size()
                 padding = 8
                 tbox = pygame.Rect(280, 600, tw + padding*2, th + padding)
-                pygame.draw.rect(screen, (255,255,220), tbox)
-                pygame.draw.rect(screen, (0,0,0), tbox, 1)
+                pygame.draw.rect(screen, BG_DARK, tbox)
+                pygame.draw.rect(screen, TEXT_LIGHT, tbox, 1)
                 screen.blit(txt_surf, (tbox.x + padding, tbox.y + (padding//2)))
 
             # set globals for animations
@@ -1081,7 +1085,7 @@ def show_rules():
             if ev.type == pygame_gui.UI_BUTTON_PRESSED and ev.ui_element == return_btn:
                 return_btn.kill(); GUI_MANAGER.update(clock.tick(FPS)); GUI_MANAGER.draw_ui(screen); showing = False
             GUI_MANAGER.process_events(ev)
-        screen.fill((255,255,255))
+        screen.fill(BG_DARK)
         draw_header("Flip 7 Rules")
         draw_subtitle("H = Hit (keyboard)  S = Stay (keyboard)  Q = Quit to Menu")
         lines = [
@@ -1106,7 +1110,7 @@ def show_rules():
         ]
         x,y = 50, 160
         for l in lines:
-            screen.blit(SMALL.render(l, True, (0,0,0)), (x, y)); y+=26
+            screen.blit(SMALL.render(l, True, TEXT_LIGHT), (x, y)); y+=26
         time_delta = clock.tick(FPS)
         GUI_MANAGER.update(time_delta)
         GUI_MANAGER.draw_ui(screen)
