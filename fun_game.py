@@ -516,7 +516,6 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                         show_message(f"{players[target_idx].name} BUSTED!", ms=900)
                         pygame.time.delay(POST_ACTION_PAUSE_MS)
                         return "bust"
-        players[target_idx].hand.remove(card_val)
         # After performing the three flips, continue to action resolution below
 
         # After playing flips, resolve action cards in target hand (remove BEFORE processing)
@@ -550,18 +549,6 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                 targ.stayed = True
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
             elif a == 20:
-                targ_candidates = active_player_indices(players)
-                if target_idx not in targ_candidates: targ_candidates.append(target_idx)
-                if len(targ_candidates) == 1:
-                    tgt = targ_candidates[0]
-                else:
-                    if players[target_idx].is_bot:
-                        others2 = [i for i in targ_candidates if i != target_idx]
-                        tgt = random.choice(others2) if others2 else target_idx
-                    else:
-                        tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE", allowed_indices=targ_candidates)
-                        if tgt is None:
-                            continue
                 # cascade 3 draws onto same target (automatic)
                 for _ in range(3):
                     ensure_deck_has_cards(deck, discard)
@@ -586,10 +573,9 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                                 show_message(f"{players[target_idx].name} BUSTED!", ms=900)
                                 pygame.time.delay(POST_ACTION_PAUSE_MS)
                                 return "bust"
-                pygame.time.delay(30000)
                 show_message(f"{players[target_idx].name} resolved FLIP3", ms=MESSAGE_MS//2)
                 
-                pygame.time.delay(30000)#POST_ACTION_PAUSE_MS)
+                pygame.time.delay(POST_ACTION_PAUSE_MS)
 
         # Check Flip7 for the target after all cascades
         players[target_idx].compute_current_score()
