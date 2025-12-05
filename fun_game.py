@@ -870,6 +870,12 @@ def play_game_gui():
             if players[current_idx].is_bot:
                 bot = players[current_idx]
                 pygame.time.delay(BOT_ACTION_DELAY_MS)
+
+                # Return pressed anytime → exit to menu
+                ev = pygame.event.wait()
+                if ev.type == MOUSEBUTTONDOWN and return_btn_ui.rect.collidepoint(ev.pos):
+                    return
+            
                 if bot.busted or bot.stayed:
                     pass
                 else:
