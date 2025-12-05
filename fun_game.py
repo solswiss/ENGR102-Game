@@ -497,6 +497,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             drawn = deck.pop()
             animate_card_move(drawn, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
             players[target_idx].add_card(drawn, face_up=True)
+            print("gains card",drawn,"len:",len(players[target_idx].hand))
             pygame.time.delay(FLIP3_INTERVAL_MS)
             # only number cards can bust
             if drawn in range(0,13):
@@ -517,6 +518,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                         show_message(f"{players[target_idx].name} BUSTED!", ms=900)
                         pygame.time.delay(POST_ACTION_PAUSE_MS)
                         return "bust"
+        players[target_idx].hand.remove(card_val)
         # After performing the three flips, continue to action resolution below
 
         # After playing flips, resolve action cards in target hand (remove BEFORE processing)
@@ -544,11 +546,25 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                 show_message(f"{players[target_idx].name} resolved FREEZE -> {targ.name}", ms=MESSAGE_MS//2)
                 targ.compute_current_score()
                 targ.score_total += targ.score_current
-                discard.extend(targ.hand); targ.hand = []; targ.hand_face = []; targ.stayed = True
+                discard.extend(targ.hand)
+                targ.hand = []
+                targ.hand_face = []
+                targ.stayed = True
                 pygame.time.delay(POST_ACTION_PAUSE_MS)
             elif a == 20:
+                targ_candidates = active_player_indices(players)
+                if target_idx not in targ_candidates: targ_candidates.append(target_idx)
+                if len(targ_candidates) == 1:
+                    tgt = targ_candidates[0]
+                else:
+                    if players[target_idx].is_bot:
+                        others2 = [i for i in targ_candidates if i != target_idx]
+                        tgt = random.choice(others2) if others2 else target_idx
+                    else:
+                        tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE", allowed_indices=targ_candidates)
+                        if tgt is None:
+                            continue
                 # cascade 3 draws onto same target (automatic)
-                show_message(f"{players[target_idx].name} resolved FLIP3", ms=MESSAGE_MS//2)
                 for _ in range(3):
                     ensure_deck_has_cards(deck, discard)
                     if not deck: break
@@ -572,7 +588,10 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
                                 show_message(f"{players[target_idx].name} BUSTED!", ms=900)
                                 pygame.time.delay(POST_ACTION_PAUSE_MS)
                                 return "bust"
-                pygame.time.delay(POST_ACTION_PAUSE_MS)
+                pygame.time.delay(30000)
+                show_message(f"{players[target_idx].name} resolved FLIP3", ms=MESSAGE_MS//2)
+                
+                pygame.time.delay(30000)#POST_ACTION_PAUSE_MS)
 
         # Check Flip7 for the target after all cascades
         players[target_idx].compute_current_score()
@@ -617,6 +636,7 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
             tgt = tgt_candidates[0]
         else:
             if p.is_bot:
+                print(p,"is bot")
                 others = [i for i in tgt_candidates if i != player_idx]
                 tgt = random.choice(others) if others else player_idx
             else:
@@ -690,7 +710,7 @@ def setup_players_gui():
     input_text = ""
     input_rect = pygame.Rect((50,200,400,50))
     x,y = WINDOW_WIDTH-420, 120
-    btn_w = BUTTON_W
+    btn_w = BUTTON_W * 3/2
     return_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((WINDOW_WIDTH-200,20),(BUTTON_W,BUTTON_H)), text="Return", manager=GUI_MANAGER)
     add_human_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y),(btn_w,BUTTON_H)), text="Add Human", manager=GUI_MANAGER)
     add_bot_btn = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((x,y+BUTTON_H+20),(btn_w,BUTTON_H)), text="Add Bot", manager=GUI_MANAGER)
@@ -909,7 +929,9 @@ def play_game_gui():
                 if ev.key == K_s:
                     action_queue.append("stay")
             # button hover/click
-            hit_btn.handle_event(ev); stay_btn.handle_event(ev); return_btn_ui.handle_event(ev)
+            hit_btn.handle_event(ev)
+            stay_btn.handle_event(ev)
+            return_btn_ui.handle_event(ev)
             if ev.type == MOUSEBUTTONDOWN:
                 if return_btn_ui.rect.collidepoint(ev.pos):
                     return  # go back to main menu
@@ -977,7 +999,8 @@ def play_game_gui():
                     draw_players(players, idx, None)
                     draw_deck_info(deck, discard)
                     draw_final_info_box(f"Triggerer: {players[triggerer_idx].name}")
-                    hit_btn.draw(screen); stay_btn.draw(screen)
+                    hit_btn.draw(screen)
+                    stay_btn.draw(screen)
                     pygame.display.update()
                     if players[idx].is_bot:
                         pygame.time.delay(BOT_ACTION_DELAY_MS)
@@ -996,16 +1019,26 @@ def play_game_gui():
                         if ev.type == QUIT:
                             pygame.quit(); sys.exit()
                         if ev.type == KEYDOWN:
+                            # HUMAN player: wait for keyboard or click
+                            if ev.key == K_q:
+                                return
                             if ev.key == K_h:
-                                ensure_deck_has_cards(deck, discard)
-                                if deck:
-                                    d = deck.pop()
-                                    animate_card_move(d, idx, len(players[idx].hand), HIT_ANIM_MS)
-                                    resolve_draw(idx, d, players, deck, discard, idx)
+                                action_queue.append("hit")
                             if ev.key == K_s:
-                                players[idx].compute_current_score()
-                                players[idx].score_total += players[idx].score_current
-                                discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
+                                action_queue.append("stay")
+                        # button hover/click
+                        hit_btn.handle_event(ev)
+                        stay_btn.handle_event(ev)
+                            # if ev.key == K_h:
+                            #     ensure_deck_has_cards(deck, discard)
+                            #     if deck:
+                            #         d = deck.pop()
+                            #         animate_card_move(d, idx, len(players[idx].hand), HIT_ANIM_MS)
+                            #         resolve_draw(idx, d, players, deck, discard, idx)
+                            # if ev.key == K_s:
+                            #     players[idx].compute_current_score()
+                            #     players[idx].score_total += players[idx].score_current
+                            #     discard.extend(players[idx].hand); players[idx].hand = []; players[idx].hand_face = []; players[idx].stayed = True
                     clock.tick(FPS)
 
             # determine winner (or continue on tie)
