@@ -58,8 +58,8 @@ GUI_MANAGER = pygame_gui.UIManager((WINDOW_WIDTH, WINDOW_HEIGHT), theme_path="gu
 MODIFIER_MAP = {13: 2, 14: 4, 15: 6, 16: 8, 17: 10}
 LABEL_MAP = {18: "X2", 19: "FREEZE", 20: "FLIP3", 21: "SECOND"}
 
-# deck draw area for animation
-DECK_POS = (820, 80)
+# deck draw area for animation -- moved down a bit so it doesn't block player names
+DECK_POS = (820, 120)
 
 # ---------- Image loading (cached) ----------
 IMAGE_CACHE = {}
@@ -243,8 +243,9 @@ def active_player_indices(players):
 # ---------- UI helpers ----------
 def player_hand_pos(player_index, card_index):
     """ Takes in a player's index and card index's, return the card position as a tuple of (x,y)"""
+    # increased vertical spacing so cards don't overlap player names
     x = 18 + card_index * (CARD_W + CARD_GAP)
-    y = ROWS_TOP + player_index * (CARD_H + 25)
+    y = ROWS_TOP + player_index * (CARD_H + 50)
     return x, y
 
 def draw_header(title):
@@ -254,7 +255,7 @@ def draw_header(title):
     hdr_rect = pygame.Rect(12, 8, 760, 80)
     pygame.draw.rect(screen, (245,245,245), hdr_rect)  # same color but keeps consistent layout
     screen.blit(BIG.render(title, True, (10,10,10)), (18, 10))
-    
+    # NOTE: removed the "H = Hit ..." subtext per user's request
 
 def draw_players(players, current_idx, final_info=None):
     """ Takes in a list of players, current index, and final info (default None) and display each players' information"""
@@ -267,22 +268,25 @@ def draw_players(players, current_idx, final_info=None):
         cursor = " <--" if i==current_idx and not p.busted and not p.stayed else ""
         label = f"{i+1}. {p.name}  Tot: {p.score_total}  Curr: {p.score_current}{status}{cursor}"
         # draw label on a small background rect to avoid bleed
-        lbl_rect = pygame.Rect(12, y-50, 700, 35)
+        lbl_rect = pygame.Rect(12, y-60, 700, 35)
         pygame.draw.rect(screen, (255,255,255), lbl_rect)
-        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-50))
+        screen.blit(FONT.render(label, True, (0,0,0)), (18, y-56))
         x = 18
+        # draw cards slightly lower to avoid overlapping the name
+        card_y = y + 6
         for idx_card, c in enumerate(p.hand):
             face_up = False
             if idx_card < len(p.hand_face):
                 face_up = p.hand_face[idx_card]
             if face_up:
-                screen.blit(get_card_image(c), (x, y-10))
+                screen.blit(get_card_image(c), (x, card_y))
             else:
-                screen.blit(back_img, (x, y))
+                screen.blit(back_img, (x, card_y))
             x += CARD_W + CARD_GAP
-        y += CARD_H + 45
+        y += CARD_H + 50
 
     # draw deck (so deck is under final-info box)
+
 def draw_deck_info(deck, discard):
     """ Takes in a deck and discard deck and displays the current decks' info """
     # small background area for deck info so text doesn't bleed
@@ -293,6 +297,7 @@ def draw_deck_info(deck, discard):
     pygame.draw.rect(screen, (200,200,200), top_rect)
     pygame.draw.rect(screen, (0,0,0), top_rect, 2)
     if deck:
+        # move the back image down slightly (DECK_POS already moved)
         screen.blit(get_back_image(), top_rect.topleft)
 
 def draw_final_info_box(final_info):
@@ -365,9 +370,6 @@ def animate_card_move(card_val, target_idx, target_slot_index, duration_ms):
         pygame.display.update()
         clock.tick(FPS)
 
-# ---------- FLIP3 pending state ----------
-flip3_state = {'active': False, 'initiator': None, 'target': None, 'remaining': 0}
-
 # ---------- Target selection overlay ----------
 def choose_target_ui(players, prompt_text, allowed_indices=None):
     """ Takes in a list of players, prompt, and allowed indices (default None) and displays the target selection overlay, which list available targets"""
@@ -429,7 +431,7 @@ current_global_discard = [None]
 def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
     """
     Takes in the player index, card  value, list of players, deck, discard deck, and the current player index
-    Returns: 'ok','bust','flip7','second_consumed','pending_flip3'
+    Returns: 'ok','bust','flip7','second_consumed'
     """
     p = players[player_idx]
 
@@ -486,47 +488,38 @@ def resolve_draw(player_idx, card_val, players, deck, discard, current_idx):
         # Give FLIP3 marker for visual record (face-up)
         players[target_idx].add_card(20, face_up=True)
 
-        # Bot initiator: immediate automatic delivery (no manual hits)
-        if p.is_bot:
-            show_message(f"{p.name} used FLIP3 -> {players[target_idx].name}", ms=MESSAGE_MS//2)
-            for _ in range(3):
-                ensure_deck_has_cards(deck, discard)
-                if not deck: break
-                drawn = deck.pop()
-                animate_card_move(drawn, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
-                players[target_idx].add_card(drawn, face_up=True)
-                pygame.time.delay(FLIP3_INTERVAL_MS)
-                # only number cards can bust
-                if drawn in range(0,13):
-                    nums = [c for c in players[target_idx].hand if c in range(0,13)]
-                    if len(nums) != len(set(nums)):
-                        if players[target_idx].has_second:
-                            players[target_idx].pop_last()
-                            players[target_idx].has_second = False
-                            players[target_idx].remove_card_value(21)
-                            players[target_idx].compute_current_score()
-                            continue
-                        else:
-                            discard.extend(players[target_idx].hand)
-                            players[target_idx].hand = []
-                            players[target_idx].hand_face = []
-                            players[target_idx].busted = True
-                            players[target_idx].score_current = 0
-                            show_message(f"{players[target_idx].name} BUSTED!", ms=900)
-                            pygame.time.delay(POST_ACTION_PAUSE_MS)
-                            return "bust"
-            # After bot flips, continue to action resolution below
+        # AUTOMATIC delivery for both bots and humans: perform 3 slow flips onto target
+        show_message(f"{p.name} used FLIP3 -> {players[target_idx].name}", ms=MESSAGE_MS//2)
+        for _ in range(3):
+            ensure_deck_has_cards(deck, discard)
+            if not deck:
+                break
+            drawn = deck.pop()
+            animate_card_move(drawn, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
+            players[target_idx].add_card(drawn, face_up=True)
+            pygame.time.delay(FLIP3_INTERVAL_MS)
+            # only number cards can bust
+            if drawn in range(0,13):
+                nums = [c for c in players[target_idx].hand if c in range(0,13)]
+                if len(nums) != len(set(nums)):
+                    if players[target_idx].has_second:
+                        players[target_idx].pop_last()
+                        players[target_idx].has_second = False
+                        players[target_idx].remove_card_value(21)
+                        players[target_idx].compute_current_score()
+                        continue
+                    else:
+                        discard.extend(players[target_idx].hand)
+                        players[target_idx].hand = []
+                        players[target_idx].hand_face = []
+                        players[target_idx].busted = True
+                        players[target_idx].score_current = 0
+                        show_message(f"{players[target_idx].name} BUSTED!", ms=900)
+                        pygame.time.delay(POST_ACTION_PAUSE_MS)
+                        return "bust"
+        # After performing the three flips, continue to action resolution below
 
-        else:
-            # Human initiator: require 3 manual hits (set pending state)
-            flip3_state['active'] = True
-            flip3_state['initiator'] = player_idx
-            flip3_state['target'] = target_idx
-            flip3_state['remaining'] = 3
-            show_message(f"{p.name} has FLIP3 to {players[target_idx].name}", ms=MESSAGE_MS)
-            return "pending_flip3"
-
-        # After playing immediate bot flips, resolve action cards in target hand (remove BEFORE processing)
+        # After playing flips, resolve action cards in target hand (remove BEFORE processing)
         # Collect a copy then remove+process to avoid leaving markers
         action_cards = [c for c in list(players[target_idx].hand) if c in (19,20)]
         for a in action_cards:
@@ -795,7 +788,7 @@ def play_game_gui():
     return_btn_ui = Button((WINDOW_WIDTH-200, 20, BUTTON_W, BUTTON_H), "Return", lambda: action_press("return"))
     tooltip = ""
     action_queue = []
-    def action_press(kind): 
+    def action_press(kind):
         """ Takes in a kind of action and adds it to the action queue"""
         action_queue.append(kind)
 
@@ -850,7 +843,7 @@ def play_game_gui():
             draw_final_info_box(final_info)
             # draw buttons
             hit_btn.draw(screen); stay_btn.draw(screen); return_btn_ui.draw(screen)
-            # tooltip
+            # tooltip (auto-size to text)
             if hit_btn.hover:
                 tooltip = "Draw a card (keyboard H). If duplicate number -> bust unless you have Second Chance."
             elif stay_btn.hover:
@@ -858,8 +851,13 @@ def play_game_gui():
             else:
                 tooltip = ""
             if tooltip:
-                tbox = pygame.Rect(280, 600, 460, 30)
-                screen.blit(SMALL.render(tooltip, True, (0,0,0)), (tbox.x+6, tbox.y+4))
+                txt_surf = SMALL.render(tooltip, True, (0,0,0))
+                tw, th = txt_surf.get_size()
+                padding = 8
+                tbox = pygame.Rect(280, 600, tw + padding*2, th + padding)
+                pygame.draw.rect(screen, (255,255,220), tbox)
+                pygame.draw.rect(screen, (0,0,0), tbox, 1)
+                screen.blit(txt_surf, (tbox.x + padding, tbox.y + (padding//2)))
 
             # set globals for animations
             current_global_players[0] = players
@@ -870,7 +868,7 @@ def play_game_gui():
 
             pygame.display.update()
 
-            # BOT behavior: bots auto-act even if a human has a pending flip3; only human-initiated flip3 requires human to finish
+            # BOT behavior: bots auto-act
             if players[current_idx].is_bot:
                 bot = players[current_idx]
                 pygame.time.delay(BOT_ACTION_DELAY_MS)
@@ -916,122 +914,17 @@ def play_game_gui():
                 if return_btn_ui.rect.collidepoint(ev.pos):
                     return  # go back to main menu
 
-            # If there is an active pending human-driven FLIP3, Hits from the initiator deliver flip cards
+            # Handle queued actions simply: hits and stays. FLIP3 is now automatic inside resolve_draw.
             if action_queue:
                 act = action_queue.pop(0)
-                if act == "hit" and flip3_state['active'] and current_idx == flip3_state['initiator']:
-                    # deliver one flip to flip3 target
-                    ensure_deck_has_cards(deck, discard)
-                    if deck:
-                        drawn = deck.pop()
-                        tgt = flip3_state['target']
-                        animate_card_move(drawn, tgt, len(players[tgt].hand), HIT_ANIM_MS)
-                        players[tgt].add_card(drawn, face_up=True)
-                        pygame.time.delay(FLIP3_INTERVAL_MS)
-                        # only numeric cards cause bust
-                        if drawn in range(0,13):
-                            nums = [c for c in players[tgt].hand if c in range(0,13)]
-                            if len(nums) != len(set(nums)):
-                                if players[tgt].has_second:
-                                    players[tgt].pop_last()
-                                    players[tgt].has_second = False
-                                    players[tgt].remove_card_value(21)
-                                    players[tgt].compute_current_score()
-                                else:
-                                    discard.extend(players[tgt].hand)
-                                    players[tgt].hand = []
-                                    players[tgt].hand_face = []
-                                    players[tgt].busted = True
-                                    players[tgt].score_current = 0
-                                    show_message(f"{players[tgt].name} BUSTED!", ms=900)
-                                    # clear flip3 pending
-                                    flip3_state['active'] = False
-                                    flip3_state['initiator'] = None
-                                    flip3_state['target'] = None
-                                    flip3_state['remaining'] = 0
-                                    nxt = next_active_index(players, current_idx)
-                                    if nxt is None: break
-                                    current_idx = nxt
-                                    continue
-                        flip3_state['remaining'] -= 1
-                        if flip3_state['remaining'] <= 0:
-                            # finished manual delivery -> process action cards on target
-                            target_idx = flip3_state['target']
-                            # reset state
-                            flip3_state['active'] = False
-                            flip3_state['initiator'] = None
-                            flip3_state['target'] = None
-                            flip3_state['remaining'] = 0
-                            # process action cards found in target's hand (remove then process)
-                            action_cards = [c for c in list(players[target_idx].hand) if c in (19,20)]
-                            for a in action_cards:
-                                players[target_idx].remove_card_value(a)
-                                if players[target_idx].busted: break
-                                if a == 19:
-                                    tgt_candidates = active_player_indices(players)
-                                    if target_idx not in tgt_candidates: tgt_candidates.append(target_idx)
-                                    if len(tgt_candidates) == 1:
-                                        tgt = tgt_candidates[0]
-                                    else:
-                                        if players[target_idx].is_bot:
-                                            others2 = [i for i in tgt_candidates if i != target_idx]
-                                            tgt = random.choice(others2) if others2 else target_idx
-                                        else:
-                                            tgt = choose_target_ui(players, f"{players[target_idx].name} resolved FREEZE", allowed_indices=tgt_candidates)
-                                            if tgt is None: continue
-                                    targ = players[tgt]
-                                    show_message(f"{players[target_idx].name} resolved FREEZE -> {targ.name}", ms=MESSAGE_MS//2)
-                                    targ.compute_current_score()
-                                    targ.score_total += targ.score_current
-                                    discard.extend(targ.hand); targ.hand = []; targ.hand_face = []; targ.stayed = True
-                                    pygame.time.delay(POST_ACTION_PAUSE_MS)
-                                elif a == 20:
-                                    show_message(f"{players[target_idx].name} resolved FLIP3 -> additional draws", ms=MESSAGE_MS//2)
-                                    for _ in range(3):
-                                        ensure_deck_has_cards(deck, discard)
-                                        if not deck: break
-                                        drawn2 = deck.pop()
-                                        animate_card_move(drawn2, target_idx, len(players[target_idx].hand), DEAL_ANIM_MS//2)
-                                        players[target_idx].add_card(drawn2, face_up=True)
-                                        pygame.time.delay(FLIP3_INTERVAL_MS)
-                                        if drawn2 in range(0,13):
-                                            nums = [c for c in players[target_idx].hand if c in range(0,13)]
-                                            if len(nums) != len(set(nums)):
-                                                if players[target_idx].has_second:
-                                                    players[target_idx].pop_last()
-                                                    players[target_idx].has_second = False
-                                                    players[target_idx].remove_card_value(21)
-                                                else:
-                                                    discard.extend(players[target_idx].hand)
-                                                    players[target_idx].hand = []
-                                                    players[target_idx].hand_face = []
-                                                    players[target_idx].busted = True
-                                                    players[target_idx].score_current = 0
-                                                    show_message(f"{players[target_idx].name} BUSTED!", ms=900)
-                                                    break
-                                    pygame.time.delay(POST_ACTION_PAUSE_MS)
-                            # check flip7
-                            players[target_idx].compute_current_score()
-                            if unique_number_count(players[target_idx].hand) >= 7:
-                                show_message(f"{players[target_idx].name} got FLIP 7!", ms=MESSAGE_MS)
-                                players[target_idx].score_total += 15 + players[target_idx].score_current
-                                discard.extend(players[target_idx].hand); players[target_idx].hand = []; players[target_idx].hand_face = []; players[target_idx].stayed = True
-                                pygame.time.delay(POST_ACTION_PAUSE_MS)
-                            nxt = next_active_index(players, current_idx)
-                            if nxt is None: break
-                            current_idx = nxt
-                        else:
-                            # not finished yet, initiator must press more hits
-                            pass
-
-                elif act == "hit":
+                if act == "hit":
                     ensure_deck_has_cards(deck, discard)
                     if deck:
                         drawn = deck.pop()
                         animate_card_move(drawn, current_idx, len(players[current_idx].hand), HIT_ANIM_MS)
                         res = resolve_draw(current_idx, drawn, players, deck, discard, current_idx)
                         if res == "pending_flip3":
-                            # flip3_state is set; initiator remains until finished
+                            # old state removed; this should not happen now
                             pass
                         else:
                             if players[current_idx].score_total >= 200 and not final_trigger:
